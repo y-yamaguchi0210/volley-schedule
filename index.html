@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WINGS月間予定表</title>
+<script>
+/* ===== Firebase設定 =====
+   README.md の手順で取得した値を貼り付けてください。
+   apiKey が空のままだと「デモモード」（この端末のブラウザ内だけに保存）で動きます。 */
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD3Lz7C46Z3cKG0bHKt_eqTv4qerxgcGWg",
+  authDomain: "wings-yoteihyo.firebaseapp.com",
+  projectId: "wings-yoteihyo",
+  storageBucket: "wings-yoteihyo.firebasestorage.app",
+  messagingSenderId: "766912111492",
+  appId: "1:766912111492:web:4449455fd0a4d7fbe433d1"
+};
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#f5f6f8;--card:#fff;--text:#1d2330;--muted:#6b7280;--line:#e3e6eb;--accent:#2563eb;
+  --practice:#2563eb;--trial:#db2777;--match:#ea7a0c;--tournament:#dc2626;--off:#6b7280;--custom:#0d9488;
+  --ok:#16a34a;--maybe:#ca8a04;--ng:#dc2626;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif;font-size:15px}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 12px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--ng);border-color:#f3c2c2}
+input,select,textarea{border:1px solid var(--line);border-radius:8px;padding:8px;width:100%;background:#fff}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.hidden{display:none!important}
+header{background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0;flex:1}
+header .who{font-size:13px;color:var(--muted)}
+nav.tabs{display:flex;gap:4px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line)}
+nav.tabs button{border:none;background:none;padding:8px 12px;border-radius:8px;color:var(--muted)}
+nav.tabs button.on{background:#e8efff;color:var(--accent);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+.banner{background:#fff7e6;border:1px solid #f6d58a;color:#7a5200;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:12px}
+/* auth */
+#auth{max-width:400px;margin:40px auto}
+#auth h2{margin:0 0 4px}
+.switch{margin-top:12px;font-size:13px;text-align:center}
+.switch a{color:var(--accent);cursor:pointer}
+.err{color:var(--ng);font-size:13px;margin-top:8px;min-height:1em}
+/* calendar */
+.calbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.calbar h2{margin:0;font-size:20px;flex:1;text-align:center}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:8px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;background:var(--c)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);background:var(--line);gap:1px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.dow{background:#fafbfc;text-align:center;font-size:12px;padding:6px 0;color:var(--muted)}
+.dow.sun,.day.sun .num{color:var(--ng)} .dow.sat,.day.sat .num{color:var(--accent)}
+.day{background:#fff;min-height:110px;padding:4px;cursor:pointer;overflow:hidden}
+.day:hover{background:#f8faff}
+.day.other{background:#fafbfc}.day.other .num{opacity:.4}
+.day.today .num{background:var(--accent);color:#fff!important;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center}
+.num{font-size:13px;font-weight:600}
+.ev{border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:4px;padding:2px 4px;margin-top:3px;font-size:11px;line-height:1.35}
+.ev b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev .cnt{color:var(--muted)}
+.ev .duty{color:#7c3aed}
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;z-index:20}
+.modal .card{width:100%;max-width:720px}
+.modal h3{margin:0 0 8px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.evitem{border:1px solid var(--line);border-left:6px solid var(--c);border-radius:10px;padding:10px 12px;margin:10px 0}
+.evitem .head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{background:var(--c);color:#fff;font-size:12px;border-radius:6px;padding:1px 8px}
+.meta{font-size:12px;color:var(--muted)}
+table.att{width:100%;border-collapse:collapse;margin-top:6px}
+table.att td{padding:5px 4px;border-top:1px solid var(--line);font-size:14px}
+table.att td.who{font-size:11px;color:var(--muted);text-align:right}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0;padding:4px 10px;background:#fff}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on.o{background:var(--ok);color:#fff}
+.seg button.on.m{background:var(--maybe);color:#fff}
+.seg button:disabled{cursor:default;color:#b8bcc4}
+.seg button:disabled.on{color:#fff;opacity:.75}
+.chips label.taken{color:var(--muted);background:#f1f2f4}
+.seg button.on.x{background:var(--ng);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips label{display:inline-flex;align-items:center;gap:4px;margin:0;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--text);font-size:13px}
+.chips input{width:auto}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+h4{margin:14px 0 2px;font-size:14px}
+/* 添付ファイル */
+.files{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.filebtn{display:inline-flex;align-items:center;gap:4px;font-size:13px;padding:4px 10px;border-radius:999px;background:#f5f7fb}
+.filebtn .x{color:var(--ng);font-weight:bold;margin-left:4px}
+.drop{border:2px dashed var(--line);border-radius:8px;padding:12px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer;margin-top:4px}
+.drop.over,.drop:focus{border-color:#3b82f6;color:#1e3a8a;background:#eef4ff;outline:none}
+/* members/log */
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.list li span{flex:1}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.addrow{display:flex;gap:8px;margin-top:8px}
+.log li{display:block;font-size:13px}
+.log .t{color:var(--muted);font-size:12px;margin-right:6px}
+/* 終了した予定の日 */
+.day.done{background:#d3d6db}
+.day.done:hover{background:#c9cdd3}
+.day.done .ev{opacity:.65}
+/* 自分の子（指導者は自分）の出欠：未回答＝薄い赤、△＝薄い黄色 */
+.day.unans{background:#fde7e7}
+.day.unans:hover{background:#fbd9d9}
+.day.maybe{background:#fff5d1}
+.day.maybe:hover{background:#ffefbd}
+/* コピー */
+.clipbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#eef4ff;border:1px solid #c7d7fb;color:#1e3a8a;padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:13px}
+.clipbar span{flex:1}
+.day.pastable{outline:2px dashed #93b4f5;outline-offset:-3px}
+.day.picked,.day.picked:hover{background:#dbe7ff;outline:3px solid var(--accent)}
+.day.picked .num::after{content:" ✔";color:var(--accent)}
+.clipbar button:disabled{opacity:.5;cursor:default}
+.delbar{background:#fff1f1;border-color:#f3c2c2;color:#7f1d1d}
+.delbar span{flex-basis:100%}
+.day.delable{outline:2px dashed #f0a5a5;outline-offset:-3px}
+.day.delpicked,.day.delpicked:hover{background:#ffe1e1;outline:3px solid var(--ng)}
+.day.delpicked .num::after{content:" 🗑"}
+/* お知らせ */
+.bell{position:relative;font-size:18px;padding:4px 10px}
+.badge{position:absolute;top:-6px;right:-6px;background:var(--ng);color:#fff;font-size:11px;border-radius:999px;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 4px}
+.notice{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:8px 0;cursor:pointer}
+.notice:hover{background:#f8faff}
+.notice.due{border-color:#f3c2c2;background:#fff5f5}
+.mine{background:#fffbe6}
+body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!important}
+.escrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;border-top:1px solid var(--line);padding:8px 4px}
+.escname{min-width:130px;font-size:14px}
+.escar{display:flex;align-items:center;gap:4px;font-size:13px}
+.escar input:disabled{background:#f1f2f4}
+.star{color:#d97706}
+@media (max-width:640px){
+  main{padding:8px}
+  .day{min-height:72px;padding:2px}
+  .ev{font-size:10px;padding:1px 2px;border-left-width:3px}
+  .ev .cnt,.ev .duty,.ev .tm{display:none}
+  .row,.cols{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏐WINGS月間予定表</h1>
+  <span class="who" id="who"></span>
+  <button id="bellBtn" class="bell hidden" title="お知らせ">🔔<span id="bellCount" class="badge hidden"></span></button>
+  <button id="logoutBtn" class="hidden">ログアウト</button>
+</header>
+<nav class="tabs hidden" id="tabs">
+  <button data-tab="cal" class="on">カレンダー</button>
+  <button data-tab="members">メンバー</button>
+  <button data-tab="log">更新履歴</button>
+  <button data-tab="settings">アカウント設定</button>
+</nav>
+
+<main>
+  <div id="demoBanner" class="banner hidden">デモモードで動作中：データはこの端末のブラウザ内にだけ保存されます。みんなで共有するには README.md の手順で Firebase を設定してください。</div>
+
+  <!-- ログイン / 新規登録 -->
+  <section id="auth" class="card hidden">
+    <h2 id="authTitle">ログイン</h2>
+    <form id="authForm">
+      <div id="signupFields" class="hidden">
+        <label>お名前（表示名）</label><input id="fName" placeholder="例：山田 花子">
+        <label>立場</label>
+        <select id="fRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
+        <p class="meta">※登録後、「アカウント設定」でお子さんを選んでください。</p>
+      </div>
+      <label id="fEmailLabel">メールアドレス（またはアカウント名）</label><input id="fEmail" type="text" required autocomplete="username">
+      <div id="passFields"><label>パスワード（6文字以上）</label><input id="fPass" type="password" required minlength="6" autocomplete="current-password"></div>
+      <p class="meta hidden" id="resetHelp">登録したメールアドレスを入力して「再設定メールを送る」を押すと、パスワード変更画面のURLがメールで届きます。</p>
+      <div class="err" id="authErr"></div>
+      <div class="actions"><button class="primary" type="submit" id="authSubmit">ログイン</button></div>
+    </form>
+    <div class="switch" id="authSwitch"></div>
+  </section>
+
+  <!-- カレンダー -->
+  <section id="view-cal" class="hidden">
+    <div id="linkBanner" class="banner hidden"></div>
+    <div id="clipbar" class="clipbar hidden"></div>
+    <div id="delbar" class="clipbar delbar hidden"></div>
+    <div class="calbar">
+      <button id="prevM">◀</button>
+      <h2 id="monthTitle"></h2>
+      <button id="nextM">▶</button>
+      <button id="todayBtn">今日</button>
+      <button id="bulkDelBtn" class="danger masterOnly">🗑 一括削除</button>
+    </div>
+    <div class="legend">
+      <span style="--c:var(--practice)">練習</span>
+      <span style="--c:var(--trial)">練習（体験会）</span>
+      <span style="--c:var(--match)">練習試合</span>
+      <span style="--c:var(--tournament)">大会</span>
+      <span style="--c:var(--off)">休み</span>
+      <span style="--c:var(--custom)">その他（学校行事など）</span>
+      <span class="notMaster" style="--c:#f8c9c9">出欠が未回答の日</span>
+      <span class="notMaster" style="--c:#fbe7a1">△で回答した日</span>
+      <span>子＝子供の出席数 / 指＝指導者の出席数</span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <!-- メンバー -->
+  <section id="view-members" class="hidden">
+    <div class="banner notMaster">メンバーの追加・編集・削除は、マスター権限のアカウントのみ行えます。</div>
+    <div class="cols">
+      <div class="card">
+        <h3>子供（選手）<span id="kidCount"></span></h3>
+        <div class="meta" id="kidBreak"></div>
+        <ul class="list" id="kidList"></ul>
+        <div class="addrow masterOnly"><input id="kidName" placeholder="名前"><select id="kidGrade" class="gradeSel" style="max-width:90px"></select><select id="kidSib" style="max-width:170px"></select><button class="primary" id="addKid">追加</button></div>
+      </div>
+      <div class="card">
+        <h3>指導者<span id="coachCount"></span></h3>
+        <div class="meta" id="coachBreak"></div>
+        <ul class="list" id="coachList"></ul>
+        <div class="addrow masterOnly"><input id="coachName" placeholder="名前"><select id="coachPos" class="posSel" style="max-width:110px"></select><button class="primary" id="addCoach">追加</button></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>登録アカウント<span id="userCount"></span></h3>
+      <div class="meta" id="userBreak"></div>
+      <ul class="list" id="userList"></ul>
+    </div>
+  </section>
+
+  <!-- 履歴 -->
+  <section id="view-log" class="hidden">
+    <div class="card"><h3>更新履歴（新しい順・最大200件）</h3><ul class="list log" id="logList"></ul></div>
+  </section>
+
+  <!-- アカウント設定 -->
+  <section id="view-settings" class="hidden">
+    <div class="card" style="max-width:560px">
+      <h3>アカウント設定</h3>
+      <div class="meta" id="sEmail"></div>
+      <label>お名前（表示名）</label><input id="sName">
+      <div class="notMaster">
+        <label>立場</label>
+        <select id="sRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
+        <div id="sKidBox">
+          <label>自分の子供（複数選択できます）</label>
+          <div class="chips" id="sKids"></div>
+          <div class="meta">一覧にいない場合は、マスター権限の方に登録を依頼してください。</div>
+        </div>
+        <div id="sCoachBox">
+          <label>指導者名簿の中の自分</label>
+          <select id="sCoach"></select>
+        </div>
+        <label><input type="checkbox" id="sNotify" style="width:auto"> 未回答の出欠があるとき、前日にメールでお知らせを受け取る</label>
+      </div>
+      <div class="err" id="sMsg"></div>
+      <div class="actions"><button class="primary" id="sSave">保存</button></div>
+    </div>
+    <div class="card" style="max-width:560px;margin-top:16px">
+      <h3>パスワードの変更</h3>
+      <label>現在のパスワード</label><input id="pCur" type="password" autocomplete="current-password">
+      <label>新しいパスワード（6文字以上）</label><input id="pNew" type="password" autocomplete="new-password">
+      <label>新しいパスワード（確認）</label><input id="pNew2" type="password" autocomplete="new-password">
+      <div class="err" id="pMsg"></div>
+      <div class="actions"><button class="primary" id="pSave">パスワードを変更</button></div>
+    </div>
+    <div class="card notMaster" style="max-width:560px;margin-top:16px">
+      <h3>アカウントの削除</h3>
+      <p class="meta">削除すると、このアカウントではログインできなくなります。これまでの出欠の回答や更新履歴は残ります。</p>
+      <label>確認のためパスワードを入力</label><input id="dPass" type="password" autocomplete="current-password">
+      <div class="err" id="dMsg"></div>
+      <div class="actions"><button class="danger" id="dSave">アカウントを削除する</button></div>
+    </div>
+  </section>
+</main>
+
+<div id="modal" class="modal hidden"><div class="card" id="modalBody"></div></div>
+
+<script>
+/* ================= データ層（Firebase / デモ） ================= */
+const USE_FIREBASE = !!(window.FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && window.firebase);
+// マスター権限のアカウント（アカウント名 wings.com）。「@」のないアカウント名は内部で下記のメール形式に変換
+const MASTER_LOGIN = 'wings.com', LOGIN_DOMAIN = '@example.com';
+const toEmail = id => id.includes('@') ? id : id + LOGIN_DOMAIN;
+const MASTER_EMAIL = toEmail(MASTER_LOGIN);
+const loginName = email => String(email || '').endsWith(LOGIN_DOMAIN) ? email.slice(0, -LOGIN_DOMAIN.length) : email;
+const store = USE_FIREBASE ? firebaseStore() : localStore();
+
+/* 添付ファイルは Firestore の fileChunks コレクションに分割保存（無料プランで使えるよう Storage は使わない） */
+const MAX_FILE = 5 * 1024 * 1024, CHUNK = 900000;
+function toB64(file){
+  return new Promise((ok, ng) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = ng; r.readAsDataURL(file); });
+}
+function fromB64(b64, type){
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], {type});
+}
+const fileMeta = (id, file, chunks) => ({id, name:file.name || '貼り付けた画像.png', type:file.type || 'application/octet-stream', size:file.size, chunks});
+
+function firebaseStore(){
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const auth = firebase.auth(), db = firebase.firestore();
+  const wrap = s => s.docs.map(d => ({id:d.id, ...d.data()}));
+  return {
+    onAuth: cb => auth.onAuthStateChanged(u => cb(u ? {uid:u.uid, email:u.email} : null)),
+    async signUp(email, pw, profile){
+      const c = await auth.createUserWithEmailAndPassword(email, pw);
+      await db.collection('users').doc(c.user.uid).set({...profile, email, createdAt: Date.now()});
+    },
+    signIn: (email, pw) => auth.signInWithEmailAndPassword(email, pw),
+    signOut: () => auth.signOut(),
+    async changePassword(cur, next){
+      const u = auth.currentUser;
+      await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, cur));
+      await u.updatePassword(next);
+    },
+    set: (col, id, data) => db.collection(col).doc(id).set(data),
+    async deleteAccount(pw){
+      const u = auth.currentUser;
+      await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw));
+      await db.collection('users').doc(u.uid).delete();
+      await u.delete();
+    },
+    resetPassword(email){ auth.languageCode = 'ja'; return auth.sendPasswordResetEmail(email); },
+    subscribe(col, cb){
+      let q = db.collection(col);
+      if (col === 'logs') q = q.orderBy('at','desc').limit(200);
+      return q.onSnapshot(s => cb(wrap(s)), e => { if (auth.currentUser) alert('読み込みエラー: ' + e.message); });
+    },
+    add: (col, data) => db.collection(col).add(data),
+    update: (col, id, patch) => db.collection(col).doc(id).update(patch),
+    remove: (col, id) => db.collection(col).doc(id).delete(),
+    async putFile(file){
+      const data = await toB64(file), id = db.collection('fileChunks').doc().id, n = Math.max(1, Math.ceil(data.length / CHUNK));
+      for (let i = 0; i < n; i++) await db.collection('fileChunks').doc(`${id}_${i}`).set({data:data.slice(i * CHUNK, (i + 1) * CHUNK)});
+      return fileMeta(id, file, n);
+    },
+    async getFile(m){
+      const parts = await Promise.all([...Array(m.chunks || 1)].map((_, i) => db.collection('fileChunks').doc(`${m.id}_${i}`).get()));
+      if (parts.some(p => !p.exists)) throw new Error('not found');
+      return fromB64(parts.map(p => p.data().data).join(''), m.type);
+    },
+    delFile: m => Promise.all([...Array(m.chunks || 1)].map((_, i) => db.collection('fileChunks').doc(`${m.id}_${i}`).delete())),
+  };
+}
+
+function localStore(){
+  const KEY = 'spo_demo_v1', SKEY = 'spo_demo_session';
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
+  let data = load();
+  const subs = {}, authSubs = [];
+  const save = () => { localStorage.setItem(KEY, JSON.stringify(data)); };
+  const col = c => (data[c] ||= {});
+  const list = c => {
+    let a = Object.entries(col(c)).map(([id, v]) => ({id, ...v}));
+    if (c === 'users') a = a.map(({password, ...u}) => u);
+    if (c === 'logs') a = a.sort((x, y) => y.at - x.at).slice(0, 200);
+    return a;
+  };
+  const emit = c => (subs[c] || []).forEach(cb => cb(list(c)));
+  const uid = () => Math.random().toString(36).slice(2, 12);
+  const session = () => { const id = localStorage.getItem(SKEY); const u = id && col('users')[id]; return u ? {uid:id, email:u.email} : null; };
+  const fireAuth = () => authSubs.forEach(cb => cb(session()));
+  // デモモードではマスターアカウントを最初から用意
+  if (!Object.values(col('users')).some(u => u.email === MASTER_EMAIL)) {
+    col('users').master = {name:'マスター', role:'master', email:MASTER_EMAIL, password:null, notify:false, childIds:[], coachId:'', createdAt:Date.now()};
+    save();
+  }
+  return {
+    async changePassword(cur, next){
+      const u = col('users')[localStorage.getItem(SKEY)];
+      if (!u || u.password !== cur) throw {code:'auth/wrong-password'};
+      u.password = next; save();
+    },
+    async set(c, id, d){ col(c)[id] = d; save(); emit(c); },
+    async resetPassword(){ throw {code:'demo'}; },
+    async deleteAccount(pw){
+      const id = localStorage.getItem(SKEY), u = col('users')[id];
+      if (!u || u.password !== pw) throw {code:'auth/wrong-password'};
+      delete col('users')[id]; save(); localStorage.removeItem(SKEY); emit('users'); fireAuth();
+    },
+    onAuth(cb){ authSubs.push(cb); setTimeout(() => cb(session())); },
+    async signUp(email, pw, profile){
+      if (Object.values(col('users')).some(u => u.email === email)) throw {code:'auth/email-already-in-use'};
+      const id = uid();
+      col('users')[id] = {...profile, email, password: pw, createdAt: Date.now()};
+      save(); localStorage.setItem(SKEY, id); emit('users'); fireAuth();
+    },
+    async signIn(email, pw){
+      // デモのマスターはパスワード未設定で用意し、最初にログインしたときのパスワードをそのまま登録する（ソースにパスワードを書かないため）
+      const mu = col('users').master;
+      if (email === MASTER_EMAIL && mu && !mu.password && String(pw).length >= 6) { mu.password = pw; save(); }
+      const e = Object.entries(col('users')).find(([, u]) => u.email === email && u.password === pw);
+      if (!e) throw {code:'auth/invalid-credential'};
+      localStorage.setItem(SKEY, e[0]); fireAuth();
+    },
+    async signOut(){ localStorage.removeItem(SKEY); fireAuth(); },
+    subscribe(c, cb){ (subs[c] ||= []).push(cb); setTimeout(() => cb(list(c))); return () => { subs[c] = subs[c].filter(f => f !== cb); }; },
+    async add(c, d){ col(c)[uid()] = d; save(); emit(c); },
+    async update(c, id, patch){
+      const doc = col(c)[id]; if (!doc) return;
+      for (const [k, v] of Object.entries(patch)) {
+        const path = k.split('.'); let o = doc;
+        path.slice(0, -1).forEach(p => o = (o[p] ||= {}));
+        o[path.at(-1)] = v;
+      }
+      save(); emit(c);
+    },
+    async remove(c, id){ delete col(c)[id]; save(); emit(c); },
+    async putFile(file){
+      const id = uid();
+      col('fileChunks')[id] = {data: await toB64(file)};
+      try { save(); } catch { delete col('fileChunks')[id]; throw {code:'quota'}; }
+      return fileMeta(id, file, 1);
+    },
+    async getFile(m){ const c = col('fileChunks')[m.id]; if (!c) throw new Error('not found'); return fromB64(c.data, m.type); },
+    async delFile(m){ delete col('fileChunks')[m.id]; save(); },
+  };
+}
+
+/* ================= 状態 ================= */
+const S = { auth:null, users:[], members:[], events:[], logs:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
+S.month.setDate(1);
+// 予定編集で選べる時間帯（先頭が新規追加時の初期値）
+const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00']];
+const TYPES = {
+  practice:  {label:'練習',       c:'var(--practice)'},
+  trial:     {label:'練習（体験会）', c:'var(--trial)'},
+  match:     {label:'練習試合',   c:'var(--match)'},
+  tournament:{label:'大会',       c:'var(--tournament)'},
+  off:       {label:'休み',       c:'var(--off)'},
+  custom:    {label:'その他（手入力）', c:'var(--custom)'},
+};
+// 種別の表示名と色（手入力の場合は入力した名前）
+const typeOf = e => {
+  const t = TYPES[e.type] || TYPES.practice;
+  return e.type === 'custom' ? {label: e.typeName || 'その他', c: t.c} : t;
+};
+// 出欠をとる予定か（休みはとらない、手入力は設定次第）
+const needsAtt = e => e.type === 'off' ? false : e.type === 'custom' ? !!e.takeAtt : true;
+const ATT = {o:'○', m:'△', x:'×'};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const fmtAt = t => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const me = () => S.auth && S.users.find(u => u.id === S.auth.uid);
+const myName = () => me()?.name || S.auth?.email || '不明';
+const stamp = () => ({by:S.auth.uid, byName:myName(), at:Date.now()});
+// 学年（上の学年から順）
+const GRADES = ['6年', '5年', '4年', '3年', '2年', '1年'];
+const gradeRank = g => { const i = GRADES.indexOf(g); if (i >= 0) return i; const n = parseInt(String(g).replace(/[０-９]/g, c => c.charCodeAt(0) - 0xFEE0)); return n ? 6 - n : 99; };
+const gradeOptions = (sel = '') => `<option value="">学年</option>` + GRADES.map(g => `<option ${g===sel?'selected':''}>${g}</option>`).join('');
+document.querySelectorAll('.gradeSel').forEach(s => s.innerHTML = gradeOptions());
+// 学年が未設定でも、名前に「６年」などが含まれていればそこから判定（全角数字も対応）
+const gradeOf = m => {
+  const norm = s => String(s || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const hit = norm(m.grade).match(/[1-6]/) || norm(m.name).match(/([1-6])\s*年/);
+  return hit ? (hit[1] || hit[0]) + '年' : '';
+};
+const kids = () => S.members.filter(m => m.type === 'kid').sort((a, b) => gradeRank(gradeOf(a)) - gradeRank(gradeOf(b)) || a.name.localeCompare(b.name, 'ja'));
+// 指導者の役職（監督が上）
+const POSITIONS = ['監督', 'コーチ'];
+const posRank = p => { const i = POSITIONS.indexOf(p); return i >= 0 ? i : 99; };
+const posOptions = (sel = '') => `<option value="">役職</option>` + POSITIONS.map(p => `<option ${p===sel?'selected':''}>${p}</option>`).join('');
+document.querySelectorAll('.posSel').forEach(s => s.innerHTML = posOptions());
+const subLabel = m => m.type === 'kid' ? gradeOf(m) : (m.position || '');
+const coaches = () => S.members.filter(m => m.type === 'coach').sort((a, b) => posRank(a.position) - posRank(b.position) || a.name.localeCompare(b.name, 'ja'));
+const log = text => store.add('logs', {...stamp(), text});
+const evLabel = e => e.title || typeOf(e).label;
+// 予定が終了したか（終了時刻、なければ開始時刻、どちらもなければその日の終わり）
+const isOver = e => new Date(`${e.date}T${e.end || e.start || '23:59'}`) < new Date();
+// 自分（保護者なら自分の子、指導者なら名簿の自分）が対象のメンバー
+const myMemberIds = () => { const u = me(); if (!u) return []; return [...(u.childIds || []), ...(u.coachId ? [u.coachId] : [])]; };
+// その日の自分の子（指導者は自分）の出欠：未回答があれば 'unans'、△があれば 'maybe'（終わった予定は対象外）
+function myAttState(evs){
+  const ids = myMemberIds().filter(id => S.members.some(m => m.id === id));
+  let st = '';
+  for (const e of evs) {
+    if (!needsAtt(e) || isOver(e)) continue;
+    for (const id of ids) {
+      const v = e.attendance?.[id]?.v;
+      if (!v) return 'unans';
+      if (v === 'm') st = 'maybe';
+    }
+  }
+  return st;
+}
+// 自分に関係する未回答の出欠（これからの予定のみ）。due = 前日以降で締切
+function unanswered(){
+  const ids = myMemberIds(), today = ymd(new Date());
+  const tm = new Date(); tm.setDate(tm.getDate() + 1); const tomorrow = ymd(tm);
+  const out = [];
+  for (const e of S.events) {
+    if (!needsAtt(e) || e.date < today || isOver(e)) continue;
+    for (const id of ids) {
+      const m = S.members.find(x => x.id === id);
+      if (m && !e.attendance?.[id]) out.push({e, m, due: e.date <= tomorrow});
+    }
+  }
+  return out.sort((a, b) => a.e.date.localeCompare(b.e.date));
+}
+// 子供（指導者は名簿の自分）をまだ選んでいない（マスター以外）
+const needLink = () => { const u = me(); return !!u && !isMaster() && !myMemberIds().some(id => S.members.some(m => m.id === id)); };
+// 他のアカウントが選択済みの子供を選ぶ申請（マスターの承認待ち）
+const requests = () => S.users.flatMap(u => (u.pendingChildIds || []).map(id => ({u, k: S.members.find(m => m.id === id && m.type === 'kid')})).filter(r => r.k));
+const reqButtons = r => `<button class="primary" data-appr="${r.u.id}|${r.k.id}">承認</button> <button class="danger" data-rej="${r.u.id}|${r.k.id}">却下</button>`;
+function bindReqButtons(root){
+  root.querySelectorAll('[data-appr],[data-rej]').forEach(b => b.onclick = async () => {
+    if (!isMaster()) return;
+    const ok = !!b.dataset.appr, [uid, kid] = (b.dataset.appr || b.dataset.rej).split('|');
+    const u = S.users.find(x => x.id === uid), k = S.members.find(x => x.id === kid);
+    if (!u || !k) return;
+    if (!confirm(`${u.name} さんが ${k.name} を選択する申請を${ok ? '承認' : '却下'}しますか？`)) return;
+    b.disabled = true;
+    await store.update('users', uid, {
+      pendingChildIds: (u.pendingChildIds || []).filter(id => id !== kid),
+      ...(ok ? {childIds: [...new Set([...(u.childIds || []), kid])]} : {}),
+    });
+    log(`${u.name} さんの「${k.name}」の選択申請を${ok ? '承認' : '却下'}`);
+  });
+}
+
+/* ================= 認証 ================= */
+let signupMode = false, resetMode = false;
+function renderAuth(){
+  $('authTitle').textContent = resetMode ? 'パスワードの再設定' : signupMode ? 'アカウント作成' : 'ログイン';
+  $('authSubmit').textContent = resetMode ? '再設定メールを送る' : signupMode ? '登録する' : 'ログイン';
+  $('signupFields').classList.toggle('hidden', !signupMode || resetMode);
+  $('passFields').classList.toggle('hidden', resetMode);
+  $('resetHelp').classList.toggle('hidden', !resetMode);
+  $('fPass').required = !resetMode;
+  $('fEmailLabel').textContent = resetMode ? '登録したメールアドレス' : 'メールアドレス（またはアカウント名）';
+  $('fPass').autocomplete = signupMode ? 'new-password' : 'current-password';
+  $('authSwitch').innerHTML = resetMode
+    ? '<a id="back">ログイン画面に戻る</a>'
+    : signupMode
+    ? 'アカウントをお持ちの方は <a id="sw">ログイン</a>'
+    : 'はじめての方は <a id="sw">アカウント作成</a><br><br><a id="forgot">パスワードを忘れた方</a>';
+  const go = (su, rs) => { signupMode = su; resetMode = rs; $('authErr').textContent = ''; $('authErr').style.color = ''; renderAuth(); };
+  if ($('sw')) $('sw').onclick = () => go(!signupMode, false);
+  if ($('forgot')) $('forgot').onclick = () => go(false, true);
+  if ($('back')) $('back').onclick = () => go(false, false);
+}
+// パスワード再設定メールの送信
+async function sendReset(){
+  const raw = $('fEmail').value.trim(), err = $('authErr');
+  err.style.color = '';
+  if (!raw) { err.textContent = '登録したメールアドレスを入力してください'; return; }
+  if (!raw.includes('@') || toEmail(raw) === MASTER_EMAIL) {
+    err.textContent = 'マスターアカウントはメールを受け取れないため、Firebaseの管理画面でパスワードを再設定してください（README参照）'; return;
+  }
+  try {
+    await store.resetPassword(raw);
+    err.style.color = 'var(--ok)';
+    err.textContent = `${raw} 宛にパスワード再設定用のURLを送信しました（登録済みのアドレスの場合のみ届きます）。迷惑メールフォルダもご確認ください。`;
+  } catch (e) {
+    err.textContent = e.code === 'demo' ? 'デモモードではメールを送信できません'
+      : e.code === 'auth/invalid-email' ? 'メールアドレスの形式が正しくありません' : 'エラー: ' + (e.message || e.code);
+  }
+}
+const AUTH_ERR = {
+  'auth/email-already-in-use':'このメールアドレスは登録済みです',
+  'auth/invalid-email':'メールアドレスの形式が正しくありません',
+  'auth/weak-password':'パスワードは6文字以上にしてください',
+  'auth/invalid-credential':'メールアドレスかパスワードが違います',
+  'auth/wrong-password':'メールアドレスかパスワードが違います',
+  'auth/user-not-found':'メールアドレスかパスワードが違います',
+};
+$('authForm').onsubmit = async e => {
+  e.preventDefault();
+  if (resetMode) return sendReset();
+  const raw = $('fEmail').value.trim(), email = toEmail(raw), pw = $('fPass').value;
+  $('authErr').textContent = '';
+  try {
+    if (signupMode) {
+      const name = $('fName').value.trim();
+      if (!name) { $('authErr').textContent = 'お名前を入力してください'; return; }
+      if (!raw.includes('@')) { $('authErr').textContent = 'メールアドレスを入力してください'; return; }
+      await store.signUp(email, pw, {name, role:$('fRole').value, childIds:[], coachId:'', notify:true});
+      S.tab = 'settings';
+    } else {
+      await store.signIn(email, pw);
+    }
+  } catch (err) { $('authErr').textContent = AUTH_ERR[err.code] || ('エラー: ' + (err.message || err.code)); }
+};
+$('logoutBtn').onclick = () => { if (confirm('ログアウトしますか？')) store.signOut(); };
+
+store.onAuth(a => {
+  S.auth = a;
+  if (a && !S.unsubs) {
+    S.unsubs = ['users', 'members', 'events', 'logs'].map(c => store.subscribe(c, rows => {
+      if (c === 'users') {
+        // マスターが削除したアカウントは deleted フラグ付きで残る → 一覧から除外
+        S.usersLoaded = true;
+        S.rawUsers = rows;
+        rows = rows.filter(u => !u.deleted);
+      }
+      S[c] = rows;
+      if (kickIfDeleted()) return;
+      ensureMasterProfile(); render();
+    }));
+  }
+  if (!a && S.unsubs) {
+    // ログアウト時は購読を解除（次のログインで購読し直す）
+    S.unsubs.forEach(u => typeof u === 'function' && u());
+    S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
+    S.users = S.members = S.events = S.logs = [];
+  }
+  if (kickIfDeleted()) return;
+  ensureMasterProfile();
+  render();
+});
+// 削除済みアカウントでログインしていたら強制ログアウト
+function kickIfDeleted(){
+  if (!S.auth || !(S.rawUsers || []).some(u => u.id === S.auth.uid && u.deleted)) return false;
+  store.signOut().then(() => { $('authErr').style.color = ''; $('authErr').textContent = 'このアカウントは削除されています。'; });
+  return true;
+}
+// マスターが初めてログインしたとき、プロフィールを自動作成
+function ensureMasterProfile(){
+  if (!isMaster() || !S.usersLoaded || me() || S.creatingMaster) return;
+  S.creatingMaster = true;
+  store.set('users', S.auth.uid, {name:'マスター', role:'master', email:S.auth.email, notify:false, childIds:[], coachId:'', createdAt:Date.now()})
+    .finally(() => S.creatingMaster = false);
+}
+const isMaster = () => !!S.auth && S.auth.email === MASTER_EMAIL;
+const roleLabel = u => u?.email === MASTER_EMAIL || u?.role === 'master' ? 'マスター' : u?.role === 'coach' ? '指導者' : '保護者';
+
+/* ================= 描画 ================= */
+function render(){
+  const inApp = !!S.auth;
+  $('demoBanner').classList.toggle('hidden', USE_FIREBASE);
+  $('auth').classList.toggle('hidden', inApp);
+  $('tabs').classList.toggle('hidden', !inApp);
+  $('logoutBtn').classList.toggle('hidden', !inApp);
+  $('who').textContent = inApp ? `${myName()} さん（${isMaster() ? 'マスター' : roleLabel(me())}）でログイン中` : '';
+  document.body.classList.toggle('is-master', isMaster());
+  if (!isMaster()) S.editMember = null;
+  for (const t of ['cal', 'members', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
+  $('bellBtn').classList.toggle('hidden', !inApp);
+  if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
+  if (S.tab === 'cal') renderCal();
+  if (S.tab === 'members' && !S.editMember) renderMembers();  // 編集中は入力が消えないよう再描画しない
+  if (S.tab === 'log') renderLog();
+  if (S.tab === 'settings' && !S.settingsDirty) renderSettings();
+  renderBell();
+  if (S.openDate && !$('modal').classList.contains('hidden') && !S.editing) renderDay(S.openDate);
+  if (S.noticeOpen) renderNotices();
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; S.settingsDirty = false; S.editMember = null; render(); });
+
+function countAtt(ev, list){
+  const a = ev.attendance || {};
+  return `${list.filter(m => a[m.id]?.v === 'o').length}/${list.length}`;
+}
+function eventsOn(date){ return S.events.filter(e => e.date === date).sort((a, b) => (a.start || '').localeCompare(b.start || '')); }
+
+function renderCal(){
+  const y = S.month.getFullYear(), m = S.month.getMonth();
+  $('monthTitle').textContent = `${y}年 ${m+1}月`;
+  const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay());
+  const today = ymd(new Date()), K = kids(), C = coaches();
+  if (!isMaster()) S.delMode = false;
+  // 子供（指導者は名簿の自分）が未選択ならお知らせ
+  const link = needLink();
+  $('linkBanner').classList.toggle('hidden', !link);
+  if (link) {
+    $('linkBanner').innerHTML = `⚠ ${me().role === 'coach' ? '指導者名簿の自分' : '自分の子供'}がまだ選択されていません。<a href="#" id="goSettings">アカウント設定</a>で選択してください。${(me().pendingChildIds || []).length ? '（申請中の子供はマスターの承認待ちです）' : ''}`;
+    $('goSettings').onclick = ev => { ev.preventDefault(); S.tab = 'settings'; S.settingsDirty = false; render(); };
+  }
+  renderDelBar();
+  $('clipbar').classList.toggle('hidden', !S.clip);
+  if (S.clip) {
+    const n = S.pasteDates.size;
+    $('clipbar').innerHTML = `<span>📋 コピー中：${esc(S.clip.map(evLabel).join('、'))}<br>貼り付けたい日付をタップして選択（複数可・月をまたいでもOK）→「一括貼り付け」</span>
+      <button class="primary" id="pasteAll" ${n ? '' : 'disabled'}>一括貼り付け（${n}日）</button>
+      ${n ? '<button id="pasteReset">選択をクリア</button>' : ''}
+      <button id="clipClear">コピーを解除</button>`;
+    $('pasteAll').onclick = pasteAll;
+    if ($('pasteReset')) $('pasteReset').onclick = () => { S.pasteDates = new Set(); render(); };
+    $('clipClear').onclick = () => { S.clip = null; S.pasteDates = new Set(); render(); };
+  }
+  let html = ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
+  const weeks = Math.ceil((first.getDay() + new Date(y, m+1, 0).getDate()) / 7);
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const key = ymd(d), dow = d.getDay(), dayEvs = eventsOn(key);
+    const done = dayEvs.length && dayEvs.every(isOver);
+    const mine = done ? '' : myAttState(dayEvs);
+    const evs = dayEvs.map(e => {
+      const t = typeOf(e);
+      return `<div class="ev" style="--c:${t.c}">
+        <b>${esc(e.title || t.label)}</b>${(e.attachments || []).length ? '📎' : ''}
+        ${e.type !== 'off' ? `<span class="tm">${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>` : ''}
+        ${needsAtt(e) ? `<div class="cnt">子${countAtt(e, K)} 指${countAtt(e, C)}${hasEscort(e) ? ` 車${Object.values(e.escort || {}).filter(x => x.car === 'yes').length}台` : ''}</div>` : ''}
+        ${(e.duty || []).length ? `<div class="duty">当番:${esc(e.duty.join('・'))}</div>` : ''}
+      </div>`;
+    }).join('');
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${mine} ${S.clip?'pastable':''} ${S.clip&&S.pasteDates.has(key)?'picked':''} ${S.delMode?'delable':''} ${S.delMode&&S.delDates.has(key)?'delpicked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
+      <span class="num">${d.getDate()}</span>${evs}</div>`;
+  }
+  $('grid').innerHTML = html;
+  $('grid').querySelectorAll('.day').forEach(el => el.onclick = () => {
+    if (S.delMode && isMaster()) return toggleDel(el.dataset.date);
+    if (!S.clip || !isMaster()) return openDay(el.dataset.date);
+    // コピー中は日付タップで貼り付け先を選択／解除
+    const k = el.dataset.date;
+    S.pasteDates.has(k) ? S.pasteDates.delete(k) : S.pasteDates.add(k);
+    render();
+  });
+}
+async function pasteAll(){
+  const dates = [...S.pasteDates].sort();
+  if (!dates.length) return;
+  $('pasteAll').disabled = true;
+  for (const date of dates) for (const c of S.clip) {
+    await store.add('events', {...c, date, attendance:{}, createdBy:S.auth.uid, createdByName:myName(),
+      updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now()});
+  }
+  log(`${dates.join('・')} に予定「${S.clip.map(evLabel).join('、')}」を一括貼り付け`);
+  S.clip = null; S.pasteDates = new Set();
+  render();
+}
+$('prevM').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
+$('nextM').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
+$('todayBtn').onclick = () => { S.month = new Date(); S.month.setDate(1); render(); };
+
+/* ---------- 予定の一括削除（マスターのみ） ---------- */
+// カレンダー上で日をタップして選択 → まとめて削除
+const weekDates = key => { const d = new Date(key + 'T00:00'); d.setDate(d.getDate() - d.getDay()); return [...Array(7)].map((_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return ymd(x); }); };
+const monthDates = () => { const y = S.month.getFullYear(), m = S.month.getMonth(); return [...Array(new Date(y, m + 1, 0).getDate())].map((_, i) => ymd(new Date(y, m, i + 1))); };
+const delTargets = () => S.events.filter(e => S.delDates.has(e.date));
+function toggleDel(key){
+  const keys = S.delUnit === 'week' ? weekDates(key) : [key];
+  const allOn = keys.every(k => S.delDates.has(k));
+  keys.forEach(k => allOn ? S.delDates.delete(k) : S.delDates.add(k));
+  render();
+}
+function renderDelBar(){
+  $('delbar').classList.toggle('hidden', !S.delMode);
+  if (!S.delMode) return;
+  const n = delTargets().length, days = S.delDates.size;
+  $('delbar').innerHTML = `<span>🗑 一括削除：削除する日をカレンダーでタップして選択（月をまたいでもOK）</span>
+    <div class="chips">
+      <label><input type="radio" name="delUnit" value="day" ${S.delUnit==='day'?'checked':''}>日ごと</label>
+      <label><input type="radio" name="delUnit" value="week" ${S.delUnit==='week'?'checked':''}>週ごと</label>
+    </div>
+    <button id="delMonth">表示中の月をすべて選択</button>
+    ${days ? '<button id="delReset">選択をクリア</button>' : ''}
+    <button class="danger" id="delRun" ${n ? '' : 'disabled'}>選択した${days}日の予定を削除（${n}件）</button>
+    <button id="delExit">終了</button>`;
+  document.querySelectorAll('input[name="delUnit"]').forEach(r => r.onchange = () => { S.delUnit = r.value; });
+  $('delMonth').onclick = () => { monthDates().forEach(k => S.delDates.add(k)); render(); };
+  if ($('delReset')) $('delReset').onclick = () => { S.delDates = new Set(); render(); };
+  $('delExit').onclick = () => { S.delMode = false; S.delDates = new Set(); render(); };
+  $('delRun').onclick = async () => {
+    const evs = delTargets(); if (!evs.length) return;
+    const dates = [...new Set(evs.map(e => e.date))].sort();
+    const fmt = s => s.slice(5).replace('-', '/');
+    const range = dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])}〜${fmt(dates.at(-1))}（${dates.length}日分）`;
+    if (!confirm(`【確認】${range} の予定 ${evs.length}件 をすべて削除します。\n出欠・引率・車出しの回答も一緒に削除され、元に戻せません。\n\n本当に削除しますか？`)) return;
+    $('delRun').disabled = true;
+    for (const e of evs) await store.remove('events', e.id);
+    cleanupFiles(evs.flatMap(e => e.attachments || []), evs.map(e => e.id));
+    log(`${range} の予定 ${evs.length}件 を一括削除`);
+    S.delDates = new Set();
+    alert(`${evs.length}件の予定を削除しました。`);
+    render();
+  };
+}
+$('bulkDelBtn').onclick = () => {
+  if (!isMaster()) return;
+  S.delMode = !S.delMode; S.delDates = new Set(); S.delUnit = 'day';
+  S.clip = null; S.pasteDates = new Set();
+  render();
+};
+
+/* ---------- 日別モーダル ---------- */
+function openDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; renderDay(date); $('modal').classList.remove('hidden'); }
+function closeModal(){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; }
+$('modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
+
+// 出欠は自分の子／指導者本人（とマスター）のみ回答できる
+const canAnswer = p => isMaster() || myMemberIds().includes(p.id);
+function attTable(ev, list, emptyMsg){
+  if (!list.length) return `<div class="meta">${emptyMsg}</div>`;
+  const a = ev.attendance || {}, mine = myMemberIds();
+  return `<table class="att">${list.map(p => {
+    const cur = a[p.id], my = mine.includes(p.id);
+    return `<tr class="${my?'mine':''}"><td>${my?'<span class="star">★</span>':''}${esc(p.name)}${subLabel(p) ? ` <span class="meta">${esc(subLabel(p))}</span>` : ''}</td>
+      <td><span class="seg">${Object.entries(ATT).map(([k, s]) =>
+        `<button class="${k} ${cur?.v===k?'on':''}" data-ev="${ev.id}" data-mem="${p.id}" data-v="${k}" ${canAnswer(p)?'':'disabled'}>${s}</button>`).join('')}</span></td>
+      <td class="who">${cur ? `${esc(cur.byName)} ${fmtAt(cur.at)}` : '未回答'}</td></tr>`;
+  }).join('')}</table>`;
+}
+
+/* ---------- 添付ファイル ---------- */
+const fmtSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB';
+const viewable = t => /^(application\/pdf|image\/|text\/)/.test(t || '');
+async function openFile(m){
+  if (!m) return;
+  // PDF・画像は新しいタブで表示、それ以外はダウンロード（ポップアップブロック回避のため先にタブを開く）
+  const w = viewable(m.type) ? window.open('', '_blank') : null;
+  if (w) w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
+  try {
+    const url = URL.createObjectURL(await store.getFile(m));
+    if (w) w.location.href = url;
+    else { const a = document.createElement('a'); a.href = url; a.download = m.name; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    if (w) w.close();
+    alert('ファイルを開けませんでした（削除された可能性があります）');
+  }
+}
+// どの予定からも参照されなくなった添付ファイルを削除（コピーした予定は同じファイルを共有）
+function cleanupFiles(list, goneEventIds = []){
+  const used = new Set(S.events.filter(e => !goneEventIds.includes(e.id)).flatMap(e => (e.attachments || []).map(a => a.id)));
+  list.filter(m => !used.has(m.id)).forEach(m => store.delFile(m).catch(() => {}));
+}
+
+function renderDay(date){
+  const d = new Date(date + 'T00:00');
+  const evs = eventsOn(date);
+  $('modalBody').innerHTML = `
+    <h3>${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）</h3>
+    ${evs.length ? '' : '<p class="meta">この日の予定はまだありません。</p>'}
+    ${evs.map(e => {
+      const t = typeOf(e);
+      return `<div class="evitem" style="--c:${t.c}">
+        <div class="head"><span class="tag">${t.label}</span><b>${esc(e.title || t.label)}</b>
+          ${e.type !== 'off' ? `<span>${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>` : ''}</div>
+        ${e.place ? `<div>📍 ${esc(e.place)}</div>` : ''}
+        <div>🧺 当番：${(e.duty || []).length ? esc(e.duty.join('、')) : '<span class="meta">未定</span>'}</div>
+        ${e.note ? `<div style="white-space:pre-wrap">📝 ${esc(e.note)}</div>` : ''}
+        ${(e.attachments || []).length ? `<div class="files">📎 ${e.attachments.map(a => `<button class="filebtn" data-file="${e.id}|${a.id}">${esc(a.name)} <span class="meta">${fmtSize(a.size)}</span></button>`).join('')}</div>` : ''}
+        <div class="meta">最終更新：${esc(e.updatedByName || '')} ${e.updatedAt ? fmtAt(e.updatedAt) : ''}</div>
+        ${needsAtt(e) ? `
+          <h4>子供の出欠（○ ${countAtt(e, kids())}）</h4>${attTable(e, kids(), '「メンバー」タブで子供を登録してください')}
+          <h4>指導者の出欠（○ ${countAtt(e, coaches())}）</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}` : ''}
+        ${hasEscort(e) ? escortTable(e) : ''}
+        ${isMaster() ? `<div class="actions"><button data-copy="${e.id}">📋 コピー</button><button data-edit="${e.id}">予定を編集</button><button class="danger" data-del="${e.id}">削除</button></div>` : ''}
+      </div>`;
+    }).join('')}
+    <div class="actions">
+      ${isMaster() && evs.length > 1 ? '<button id="copyAll">📋 この日の予定をまとめてコピー</button>' : ''}
+      ${isMaster() ? '<button class="primary" id="addEv">＋ 予定を追加</button>' : ''}<button id="closeM">閉じる</button></div>`;
+  $('closeM').onclick = closeModal;
+  if ($('addEv')) $('addEv').onclick = () => editEvent(null, date);
+  const setClip = list => { S.clip = list.map(({id, attendance, escort, date, ...rest}) => rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
+  $('modalBody').querySelectorAll('[data-copy]').forEach(b => b.onclick = () => setClip([S.events.find(e => e.id === b.dataset.copy)]));
+  if ($('copyAll')) $('copyAll').onclick = () => setClip(evs);
+  $('modalBody').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editEvent(S.events.find(e => e.id === b.dataset.edit), date));
+  $('modalBody').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    const e = S.events.find(x => x.id === b.dataset.del);
+    if (!confirm(`「${evLabel(e)}」を削除しますか？`)) return;
+    await store.remove('events', e.id);
+    cleanupFiles(e.attachments || [], [e.id]);
+    log(`${e.date} の予定「${evLabel(e)}」を削除`);
+  });
+  $('modalBody').querySelectorAll('[data-file]').forEach(b => b.onclick = () => {
+    const [eid, fid] = b.dataset.file.split('|');
+    openFile((S.events.find(x => x.id === eid)?.attachments || []).find(a => a.id === fid));
+  });
+  $('modalBody').querySelectorAll('.seg button').forEach(b => b.onclick = async () => {
+    const ev = S.events.find(x => x.id === b.dataset.ev), mem = S.members.find(x => x.id === b.dataset.mem);
+    if (!canAnswer(mem) || ev.attendance?.[mem.id]?.v === b.dataset.v) return;
+    await store.update('events', ev.id, {['attendance.' + mem.id]: {v:b.dataset.v, ...stamp()}});
+    log(`${ev.date} ${evLabel(ev)}：${mem.name} を「${ATT[b.dataset.v]}」に変更`);
+  });
+  // 引率・車出しの入力（変更したらすぐ保存）
+  $('modalBody').querySelectorAll('.escrow').forEach(row => {
+    const sync = () => {
+      const car = row.querySelector('[data-car]').value;
+      row.querySelector('[data-seats]').disabled = car !== 'yes';
+    };
+    sync();
+    row.querySelectorAll('input,select').forEach(inp => inp.onchange = async () => {
+      sync();
+      const ev = S.events.find(x => x.id === row.dataset.ev), fam = families().find(f => f.key === row.dataset.fam);
+      const who = [...row.querySelectorAll('[data-who]:checked')].map(c => c.value);
+      const other = splitNames(row.querySelector('[data-other]').value).join('、');
+      const car = row.querySelector('[data-car]').value;
+      const seats = car === 'yes' ? Math.max(0, parseInt(row.querySelector('[data-seats]').value) || 0) : 0;
+      await store.update('events', ev.id, {['escort.' + fam.key]: {who, other, car, seats, ...stamp()}});
+      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `あり（子供${seats}人）` : car === 'no' ? 'なし' : '未回答'}」に変更`);
+    });
+  });
+}
+
+/* ---------- 保護者の引率・車出し（大会・練習試合） ---------- */
+const ESCORTS = ['母', '父'];
+const splitNames = s => String(s || '').split(/[、,，・\s]+/).map(x => x.trim()).filter(Boolean);
+// 手入力欄の内容（以前に選択された祖父・祖母なども含める）
+const escortOther = cur => [...(cur.who || []).filter(w => !ESCORTS.includes(w)), ...splitNames(cur.other)];
+const escortCount = cur => (cur.who || []).filter(w => ESCORTS.includes(w)).length + escortOther(cur).length;
+const hasEscort = e => e.type === 'match' || e.type === 'tournament';
+// 兄弟姉妹（メンバー登録の兄弟設定、または同じ保護者アカウントに紐づく子）は1家族にまとめて連名表示
+function families(){
+  const K = kids(), parent = {};
+  const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
+  K.forEach(k => parent[k.id] = k.id);
+  const byFam = {};
+  K.forEach(k => { if (!k.familyId) return; if (byFam[k.familyId]) parent[find(k.id)] = find(byFam[k.familyId]); else byFam[k.familyId] = k.id; });
+  S.users.forEach(u => {
+    const ids = (u.childIds || []).filter(id => parent[id]);
+    ids.slice(1).forEach(id => parent[find(id)] = find(ids[0]));
+  });
+  const groups = {};
+  K.forEach(k => (groups[find(k.id)] ||= []).push(k));   // kids() は学年順なので上の子が先頭
+  return Object.values(groups).map(ks => ({key: ks.map(k => k.id).sort()[0], kids: ks}))
+    .sort((a, b) => K.indexOf(a.kids[0]) - K.indexOf(b.kids[0]));
+}
+const famName = f => f.kids.map(k => k.name).join('・');
+function escortTable(e){
+  const fams = families(), es = e.escort || {}, mine = myMemberIds();
+  if (!fams.length) return '';
+  const att = e.attendance || {};
+  const adults = fams.reduce((n, f) => n + escortCount(es[f.key] || {}), 0);
+  const cars = fams.filter(f => es[f.key]?.car === 'yes');
+  const seats = cars.reduce((n, f) => n + (es[f.key].seats || 0), 0);
+  const going = kids().filter(k => att[k.id]?.v === 'o').length;
+  return `<h4>保護者の引率・車出し</h4>
+    <div class="meta">引率 大人${adults}人 ／ 車 ${cars.length}台・子供 ${seats}人乗車可（出席の子供 ${going}人）
+      ${seats < going ? ` <b style="color:var(--ng)">あと${going - seats}人分足りません</b>` : ''}</div>
+    ${fams.map(f => {
+      const cur = es[f.key] || {}, my = f.kids.some(k => mine.includes(k.id));
+      return `<div class="escrow ${my?'mine':''}" data-ev="${e.id}" data-fam="${f.key}">
+        <div class="escname">${my?'<span class="star">★</span>':''}${esc(famName(f))} <span class="meta">の家族</span></div>
+        <div class="chips">${ESCORTS.map(w => `<label><input type="checkbox" data-who value="${w}" ${(cur.who||[]).includes(w)?'checked':''}>${w}</label>`).join('')}
+          <input data-other value="${esc(escortOther(cur).join('、'))}" placeholder="その他（例：祖母、叔父）" style="width:170px"></div>
+        <div class="escar">🚗
+          <select data-car style="width:auto"><option value="">車出し：未回答</option><option value="yes" ${cur.car==='yes'?'selected':''}>出せる</option><option value="no" ${cur.car==='no'?'selected':''}>出せない</option></select>
+          子供<input type="number" data-seats min="0" max="9" value="${cur.seats || ''}" style="width:60px">人乗せられる
+        </div>
+        <div class="meta">${cur.at ? `${esc(cur.byName)} ${fmtAt(cur.at)}` : '未回答'}</div>
+      </div>`;
+    }).join('')}`;
+}
+
+/* ---------- 予定の追加・編集 ---------- */
+function editEvent(ev, date){
+  if (!isMaster()) return;
+  S.editing = true;
+  const e = ev || {type:'practice', date, start:TIME_PRESETS[0][0], end:TIME_PRESETS[0][1], duty:[]};
+  let keep = [...(e.attachments || [])], pending = [];
+  // 過去に使った場所（よく使う順）を選択肢にする
+  const cnt = {};
+  S.events.forEach(x => { const p = (x.place || '').trim(); if (p) cnt[p] = (cnt[p] || 0) + 1; });
+  const places = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || a.localeCompare(b, 'ja'));
+  const parents = S.users.filter(u => roleLabel(u) === '保護者').map(u => u.name);
+  const duty = e.duty || [];
+  const extra = duty.filter(n => !parents.includes(n));
+  $('modalBody').innerHTML = `
+    <h3>${ev ? '予定を編集' : '予定を追加'}</h3>
+    <label>種類</label>
+    <select id="eType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${e.type===k?'selected':''}>${t.label}</option>`).join('')}</select>
+    <div id="eCustomBox">
+      <label>種別名（例：運動会・授業参観・遠足）</label>
+      <input id="eTypeName" list="typeNameList" value="${esc(e.typeName)}" placeholder="自由に入力">
+      <datalist id="typeNameList">${[...new Set(S.events.filter(x => x.type === 'custom' && x.typeName).map(x => x.typeName))].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <label><input type="checkbox" id="eTakeAtt" style="width:auto" ${e.takeAtt ? 'checked' : ''}> この予定で出欠をとる</label>
+    </div>
+    <label>タイトル（大会名・対戦相手など、任意）</label><input id="eTitle" value="${esc(e.title)}">
+    <div class="row">
+      <div><label>日付</label><input id="eDate" type="date" value="${esc(e.date)}"></div>
+      <div><label>場所</label>
+        ${places.length ? `<select id="ePlaceSel">
+          <option value="">${places.includes(e.place || '') ? '（場所を選択）' : '新しい場所を入力 ↓'}</option>
+          ${places.map(p => `<option ${p === e.place ? 'selected' : ''}>${esc(p)}</option>`).join('')}
+        </select>` : ''}
+        <input id="ePlace" value="${esc(e.place)}" placeholder="例：〇〇小学校 体育館" style="margin-top:4px"></div>
+    </div>
+    <div id="eTimeBox">
+      <label><input type="checkbox" id="eNoTime" style="width:auto" ${ev && !e.start && !e.end ? 'checked' : ''}> 時間を入力しない</label>
+      <div id="eTimeRow">
+      <label>時間帯</label>
+      <select id="ePreset">${TIME_PRESETS.map(([s, en]) => `<option value="${s}-${en}" ${e.start === s && e.end === en ? 'selected' : ''}>${s}〜${en}</option>`).join('')}
+        <option value="" ${TIME_PRESETS.some(([s, en]) => e.start === s && e.end === en) ? '' : 'selected'}>その他（下で入力）</option></select>
+      <div class="row">
+        <div><label>開始</label><input id="eStart" type="time" value="${esc(e.start)}"></div>
+        <div><label>終了（任意）</label><input id="eEnd" type="time" value="${esc(e.end)}"></div>
+      </div>
+      </div>
+    </div>
+    <label>当番に入る保護者</label>
+    <div class="chips">${parents.length ? parents.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('') : '<span class="meta">保護者アカウントがまだありません</span>'}</div>
+    <input id="eDutyExtra" style="margin-top:6px" placeholder="上記以外の名前（「、」区切り）" value="${esc(extra.join('、'))}">
+    <label>メモ（集合時間・持ち物など）</label><textarea id="eNote" rows="3">${esc(e.note)}</textarea>
+    <label>添付ファイル（PDF・画像など、1つ5MBまで。メンバー全員が見られます）</label>
+    <div class="files" id="eFiles"></div>
+    <div class="drop" id="eDrop" tabindex="0">📎 タップしてファイルを選択<br><span class="meta">またはここにドラッグ／Ctrl+V で貼り付け</span></div>
+    <input type="file" id="eFileIn" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.txt" class="hidden">
+    ${!ev ? `<label><input type="checkbox" id="eRepeat" style="width:auto"> 同じ曜日で毎週くり返す（その月の終わりまで）</label>` : ''}
+    <div class="err" id="eErr"></div>
+    <div class="actions"><button id="eCancel">戻る</button><button class="primary" id="eSave">保存</button></div>`;
+  // 休み、または「時間を入力しない」のときは時間欄を隠す
+  const syncTime = () => {
+    $('eTimeBox').classList.toggle('hidden', $('eType').value === 'off');
+    $('eTimeRow').classList.toggle('hidden', $('eNoTime').checked);
+    $('eCustomBox').classList.toggle('hidden', $('eType').value !== 'custom');
+  };
+  $('eType').onchange = $('eNoTime').onchange = syncTime; syncTime();
+  // 場所の選択 → 入力欄に反映。手入力したら選択と連動
+  if ($('ePlaceSel')) {
+    $('ePlaceSel').onchange = () => { $('ePlace').value = $('ePlaceSel').value; if (!$('ePlaceSel').value) $('ePlace').focus(); };
+    $('ePlace').oninput = () => { $('ePlaceSel').value = places.includes($('ePlace').value.trim()) ? $('ePlace').value.trim() : ''; };
+  }
+  // 時間帯の選択 → 開始・終了に反映。手で時間を変えたら「その他」に
+  $('ePreset').onchange = () => { const [s, en] = $('ePreset').value.split('-'); if (s) { $('eStart').value = s; $('eEnd').value = en; } };
+  $('eStart').oninput = $('eEnd').oninput = () => {
+    const p = TIME_PRESETS.find(([s, en]) => s === $('eStart').value && en === $('eEnd').value);
+    $('ePreset').value = p ? p.join('-') : '';
+  };
+  // 添付ファイル
+  const renderFiles = () => {
+    $('eFiles').innerHTML = [...keep.map((a, i) => ['k', i, a.name, a.size]), ...pending.map((f, i) => ['p', i, f.name || '貼り付けた画像.png', f.size])]
+      .map(([k, i, n, sz]) => `<span class="filebtn">📄 ${esc(n)} <span class="meta">${fmtSize(sz)}</span><a href="#" class="x" data-rm="${k}${i}" title="外す">✕</a></span>`).join('');
+    $('eFiles').querySelectorAll('[data-rm]').forEach(x => x.onclick = ev => {
+      ev.preventDefault();
+      const i = +x.dataset.rm.slice(1);
+      x.dataset.rm[0] === 'k' ? keep.splice(i, 1) : pending.splice(i, 1);
+      renderFiles();
+    });
+  };
+  const addFiles = list => {
+    const big = [...list].filter(f => f.size > MAX_FILE);
+    pending.push(...[...list].filter(f => f.size <= MAX_FILE));
+    $('eErr').textContent = big.length ? `5MBを超えるため追加できません：${big.map(f => f.name).join('、')}` : '';
+    renderFiles();
+  };
+  renderFiles();
+  $('eDrop').onclick = () => $('eFileIn').click();
+  $('eDrop').onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); $('eFileIn').click(); } };
+  $('eFileIn').onchange = () => { addFiles($('eFileIn').files); $('eFileIn').value = ''; };
+  $('eDrop').ondragover = ev => { ev.preventDefault(); $('eDrop').classList.add('over'); };
+  $('eDrop').ondragleave = () => $('eDrop').classList.remove('over');
+  $('eDrop').ondrop = ev => { ev.preventDefault(); $('eDrop').classList.remove('over'); addFiles(ev.dataTransfer.files); };
+  document.onpaste = ev => {
+    if (!$('eDrop')) return;   // 編集画面以外では何もしない
+    const fs = [...(ev.clipboardData?.files || [])];
+    if (fs.length) { ev.preventDefault(); addFiles(fs); }
+  };
+  $('eCancel').onclick = () => { S.editing = false; renderDay(S.openDate); };
+  $('eSave').onclick = async () => {
+    const off = $('eType').value === 'off' || $('eNoTime').checked;
+    const dutyList = [...document.querySelectorAll('.dutyChk:checked')].map(c => c.value)
+      .concat($('eDutyExtra').value.split(/[、,，]/).map(s => s.trim()).filter(Boolean));
+    const data = {
+      type:$('eType').value, title:$('eTitle').value.trim(), date:$('eDate').value,
+      place:$('ePlace').value.trim(), start:off ? '' : $('eStart').value, end:off ? '' : $('eEnd').value,
+      duty:[...new Set(dutyList)], note:$('eNote').value.trim(),
+      typeName: $('eType').value === 'custom' ? $('eTypeName').value.trim() : '',
+      takeAtt: $('eType').value === 'custom' && $('eTakeAtt').checked,
+      updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now(),
+    };
+    if (!data.date) { $('eErr').textContent = '日付を入力してください'; return; }
+    if (data.type === 'custom' && !data.typeName) { $('eErr').textContent = '種別名を入力してください'; return; }
+    $('eSave').disabled = true;
+    const added = [];
+    if (pending.length) {
+      $('eErr').textContent = 'ファイルを保存中…';
+      try { for (const f of pending) added.push(await store.putFile(f)); }
+      catch (err) {
+        added.forEach(m => store.delFile(m).catch(() => {}));
+        $('eErr').textContent = err?.code === 'quota' ? 'デモモードの保存容量を超えました。小さいファイルにしてください' : 'ファイルの保存に失敗しました：' + (err?.message || err);
+        $('eSave').disabled = false; return;
+      }
+      $('eErr').textContent = '';
+    }
+    data.attachments = [...keep, ...added];
+    const label = evLabel(data);
+    if (ev) {
+      await store.update('events', ev.id, data);
+      cleanupFiles((ev.attachments || []).filter(a => !keep.some(k => k.id === a.id)), [ev.id]);
+      log(`${data.date} の予定「${label}」を編集`);
+    } else {
+      const dates = [data.date];
+      if ($('eRepeat')?.checked) {
+        const d = new Date(data.date + 'T00:00'), mth = d.getMonth();
+        for (d.setDate(d.getDate() + 7); d.getMonth() === mth; d.setDate(d.getDate() + 7)) dates.push(ymd(d));
+      }
+      for (const dt of dates) await store.add('events', {...data, date:dt, attendance:{}, createdBy:S.auth.uid, createdByName:myName()});
+      log(`${dates.join('・')} に予定「${label}」を追加`);
+    }
+    S.editing = false;
+    S.openDate = data.date;
+    renderDay(data.date);
+  };
+}
+
+/* ---------- メンバー ---------- */
+function renderMembers(){
+  const li = m => {
+    const kid = m.type === 'kid';
+    if (S.editMember === m.id) {
+      const sibs = siblingsOf(m).map(s => s.id);
+      const others = kids().filter(k => k.id !== m.id);
+      return `<li style="flex-wrap:wrap">
+      <input id="emName" value="${esc(m.name)}" style="flex:1;min-width:120px">
+      <select id="emSub" style="max-width:110px">${kid ? gradeOptions(gradeOf(m)) : posOptions(m.position)}</select>
+      <button class="primary" id="emSave">保存</button><button id="emCancel">取消</button>
+      ${kid && others.length ? `<div style="width:100%"><div class="meta">兄弟姉妹（チェックした子と同じ家族になります）</div>
+        <div class="chips">${others.map(k => `<label><input type="checkbox" class="emSib" value="${k.id}" ${sibs.includes(k.id)?'checked':''}>${esc(k.name)}（${esc(gradeOf(k))}）</label>`).join('')}</div></div>` : ''}
+      </li>`;
+    }
+    const sibs = kid ? siblingsOf(m) : [];
+    return `<li><span>${esc(m.name)}${subLabel(m) ? ` <span class="meta">${esc(subLabel(m))}</span>` : ''}
+      ${sibs.length ? `<br><span class="meta">兄弟姉妹：${esc(sibs.map(s => s.name).join('・'))}</span>` : ''}</span>
+      ${isMaster() ? `<button data-em="${m.id}">編集</button><button class="danger" data-rm="${m.id}">削除</button>` : ''}</li>`;
+  };
+  $('kidSib').innerHTML = '<option value="">兄弟姉妹なし</option>' + kids().map(k => `<option value="${k.id}">${esc(k.name)}の兄弟姉妹</option>`).join('');
+  // 人数と内訳
+  const breakdown = (list, keys, f) => keys.map(k => [k, list.filter(m => f(m) === k).length]).filter(([, n]) => n)
+    .map(([k, n]) => `${k} ${n}人`).concat(list.some(m => !keys.includes(f(m))) ? [`未設定 ${list.filter(m => !keys.includes(f(m))).length}人`] : []).join('・');
+  const K = kids(), C = coaches();
+  $('kidCount').textContent = `　${K.length}人`;
+  $('kidBreak').textContent = breakdown(K, GRADES, gradeOf);
+  $('coachCount').textContent = `　${C.length}人`;
+  $('coachBreak').textContent = breakdown(C, POSITIONS, m => m.position);
+  const U = S.users.filter(u => roleLabel(u) !== 'マスター');
+  $('userCount').textContent = `　${U.length}件`;
+  // 家庭数：保護者アカウントの子供を兄弟姉妹ごとの家族にまとめて数える（父母が別アカウントでも1家庭）
+  const famOf = {};
+  families().forEach(f => f.kids.forEach(k => famOf[k.id] = f.key));
+  const P = U.filter(u => u.role !== 'coach');
+  const homes = new Set(P.flatMap(u => (u.childIds || []).map(id => famOf[id]).filter(Boolean))).size;
+  const noKid = P.filter(u => !(u.childIds || []).some(id => famOf[id])).length;
+  $('userBreak').textContent = `保護者 ${P.length}人（${homes}家庭${noKid ? `・子供未設定 ${noKid}人` : ''}）・指導者 ${U.filter(u => u.role === 'coach').length}人`;
+  $('kidList').innerHTML = kids().map(li).join('') || '<li class="meta">まだ登録がありません</li>';
+  $('coachList').innerHTML = coaches().map(li).join('') || '<li class="meta">まだ登録がありません</li>';
+  document.querySelectorAll('[data-em]').forEach(b => b.onclick = () => { S.editMember = b.dataset.em; renderMembers(); $('emName').focus(); });
+  if ($('emSave')) {
+    $('emCancel').onclick = () => { S.editMember = null; renderMembers(); };
+    $('emSave').onclick = async () => {
+      const m = S.members.find(x => x.id === S.editMember), kid = m.type === 'kid';
+      const name = $('emName').value.trim(), sub = $('emSub').value;
+      if (!name) { alert('名前を入力してください'); return; }
+      if (!sub) { alert(kid ? '学年を選択してください' : '役職を選択してください'); return; }
+      const sibIds = [...document.querySelectorAll('.emSib:checked')].map(c => c.value);
+      S.editMember = null;
+      await store.update('members', m.id, kid ? {name, grade:sub} : {name, position:sub});
+      log(`${kid?'子供':'指導者'}「${m.name}」を「${name}（${sub}）」に編集`);
+      if (kid) await setSiblings(m, sibIds);
+      renderMembers();
+    };
+  }
+  const nameOf = id => S.members.find(m => m.id === id)?.name;
+  $('userList').innerHTML = S.users.map(u => {
+    const ks = (u.childIds || []).map(nameOf).filter(Boolean);
+    const info = roleLabel(u) === 'マスター' ? 'マスター（管理者）' : u.role === 'coach'
+      ? '指導者' + (nameOf(u.coachId) ? `（名簿：${esc(nameOf(u.coachId))}）` : '（名簿未設定）')
+      : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の保護者` : '（子供未設定）');
+    const delBtn = isMaster() && roleLabel(u) !== 'マスター' ? `<button class="danger" data-rmuser="${u.id}">削除</button>` : '';
+    const reqs = requests().filter(r => r.u.id === u.id);
+    return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}</span></span>${delBtn}
+      ${reqs.map(r => `<div style="width:100%" class="meta">⏳ ${esc(r.k.name)} の選択を申請中（${esc(takenBy(r.k.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）
+        ${isMaster() ? reqButtons(r) : ''}</div>`).join('')}</li>`;
+  }).join('');
+  bindReqButtons($('userList'));
+  // マスターによるアカウント削除（ログインできないよう deleted フラグを付け、子供の選択を解除）
+  document.querySelectorAll('[data-rmuser]').forEach(b => b.onclick = async () => {
+    const u = S.users.find(x => x.id === b.dataset.rmuser);
+    if (!confirm(`${u.name} さんのアカウントを削除しますか？\n（このアカウントではログインできなくなります）`)) return;
+    await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:''});
+    log(`アカウント「${u.name}」を削除`);
+  });
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
+    const m = S.members.find(x => x.id === b.dataset.rm);
+    if (!confirm(`${m.name} を削除しますか？（過去の出欠記録は表示されなくなります）`)) return;
+    await store.remove('members', m.id);
+    log(`${m.type==='kid'?'子供':'指導者'}「${m.name}」を削除`);
+  });
+}
+async function addMember(type, nameEl, subEl){
+  if (!isMaster()) return;
+  const kid = type === 'kid';
+  const name = nameEl.value.trim(); if (!name) return;
+  const sub = subEl.value;
+  if (!sub) { alert(kid ? '学年を選択してください' : '役職を選択してください'); return; }
+  // 兄弟が選ばれていれば同じ familyId をつける
+  const sib = kid && S.members.find(x => x.id === $('kidSib').value);
+  let familyId = '';
+  if (sib) {
+    familyId = sib.familyId || sib.id;
+    if (!sib.familyId) await store.update('members', sib.id, {familyId});
+  }
+  await store.add('members', {type, name, ...(kid ? {grade:sub, familyId} : {position:sub}), ...stamp()});
+  log(`${kid?'子供':'指導者'}「${name}（${sub}）」を追加${sib ? `（${sib.name}の兄弟姉妹）` : ''}`);
+  nameEl.value = ''; subEl.value = ''; if (kid) $('kidSib').value = '';
+}
+// 兄弟姉妹（同じ familyId を持つ子）
+const siblingsOf = m => m.familyId ? kids().filter(k => k.id !== m.id && k.familyId === m.familyId) : [];
+// m の兄弟を sibIds に設定し直す（選んだ子がすでに別の兄弟グループならそれごと合流）
+async function setSiblings(m, sibIds){
+  const cur = siblingsOf(m).map(k => k.id);
+  if (cur.length === sibIds.length && cur.every(id => sibIds.includes(id))) return;
+  const all = kids();
+  const group = new Set([m.id, ...sibIds]);
+  sibIds.forEach(id => { const f = all.find(k => k.id === id)?.familyId; if (f) all.filter(k => k.familyId === f && k.id !== m.id && !cur.includes(k.id)).forEach(k => group.add(k.id)); });
+  const fid = group.size > 1 ? (m.familyId || m.id) : '';
+  for (const k of all) {
+    const want = group.has(k.id) ? fid : (cur.includes(k.id) ? '' : k.familyId || '');
+    if ((k.familyId || '') !== want) await store.update('members', k.id, {familyId: want});
+  }
+  log(`子供「${m.name}」の兄弟姉妹を「${sibIds.map(id => all.find(k => k.id === id)?.name).join('・') || 'なし'}」に設定`);
+}
+$('addKid').onclick = () => addMember('kid', $('kidName'), $('kidGrade'));
+$('addCoach').onclick = () => addMember('coach', $('coachName'), $('coachPos'));
+
+/* ---------- アカウント設定 ---------- */
+function renderSettings(){
+  const u = me(); if (!u) return;
+  $('sEmail').textContent = (isMaster() ? 'マスター権限のアカウント：' : 'ログイン中のアカウント：') + loginName(u.email || S.auth.email);
+  $('sName').value = u.name || '';
+  $('sRole').value = u.role || 'parent';
+  $('sNotify').checked = u.notify !== false;
+  const sel = u.childIds || [], pend = u.pendingChildIds || [];
+  // 他のアカウントが選択済みの子は、マスターの承認後に選択される（承認待ちとして保存）
+  $('sKids').innerHTML = kids().map(k => {
+    const owners = takenBy(k.id), mine = sel.includes(k.id), wait = !mine && pend.includes(k.id);
+    const note = wait ? '承認待ち' : !mine && owners.length ? `${owners.map(o => o.name).join('・')}さんが選択済み（選ぶとマスターに承認を申請）` : '';
+    return `<label class="${note?'taken':''}"><input type="checkbox" class="sKidChk" value="${k.id}" ${mine||wait?'checked':''}>${esc(k.name)}（${esc(gradeOf(k))}）${note ? `<span class="meta">… ${esc(note)}</span>` : ''}</label>`;
+  }).join('')
+    || '<span class="meta">子供がまだ登録されていません。</span>';
+  $('sCoach').innerHTML = '<option value="">（選択してください）</option>' + coaches().map(c => {
+    const owner = coachTakenBy(c.id);
+    return `<option value="${c.id}" ${u.coachId===c.id?'selected':''} ${owner?'disabled':''}>${esc(c.name)}${c.position ? `（${esc(c.position)}）` : ''}${owner ? ` … ${esc(owner.name)}さんが選択済み` : ''}</option>`;
+  }).join('');
+  toggleRoleBoxes();
+  $('sMsg').textContent = '';
+}
+function toggleRoleBoxes(){
+  const coach = $('sRole').value === 'coach';
+  $('sKidBox').classList.toggle('hidden', coach);
+  $('sCoachBox').classList.toggle('hidden', !coach);
+}
+// その子を選択している自分以外のアカウント（マスター承認で複数になることがある）
+const takenBy = kidId => S.users.filter(u => u.id !== S.auth?.uid && (u.childIds || []).includes(kidId));
+const coachTakenBy = cid => S.users.find(u => u.id !== S.auth?.uid && u.coachId === cid);
+$('view-settings').addEventListener('input', () => S.settingsDirty = true);
+$('sRole').onchange = () => { S.settingsDirty = true; toggleRoleBoxes(); };
+$('sSave').onclick = async () => {
+  const name = $('sName').value.trim();
+  if (!name) { $('sMsg').textContent = 'お名前を入力してください'; return; }
+  const role = $('sRole').value, u = me();
+  // 他のアカウントが選択済みの子は承認待ちに回す（承認済みの子はそのまま）
+  const checked = role === 'parent' ? [...document.querySelectorAll('.sKidChk:checked')].map(c => c.value) : [];
+  const owned = id => (u?.childIds || []).includes(id) || !takenBy(id).length;
+  const patch = isMaster() ? {name} : {
+    name, role, notify:$('sNotify').checked,
+    childIds: checked.filter(owned),
+    pendingChildIds: checked.filter(id => !owned(id)),
+    coachId: role === 'coach' ? $('sCoach').value : '',
+  };
+  // 保存直前にも、他の人が先に指導者名簿の自分を選択していないか確認
+  const dupCoach = patch.coachId && coachTakenBy(patch.coachId);
+  if (dupCoach) {
+    $('sMsg').textContent = `${S.members.find(m => m.id === patch.coachId)?.name} は ${dupCoach.name}さんが選択済みです`;
+    S.settingsDirty = false; renderSettings(); return;
+  }
+  const newReq = (patch.pendingChildIds || []).filter(id => !(u?.pendingChildIds || []).includes(id));
+  await store.update('users', S.auth.uid, patch);
+  log('アカウント設定を変更' + (newReq.length ? `（${newReq.map(id => S.members.find(m => m.id === id)?.name).join('・')} の選択をマスターに申請）` : ''));
+  S.settingsDirty = false;
+  $('sMsg').style.color = 'var(--ok)';
+  $('sMsg').textContent = (patch.pendingChildIds || []).length ? '保存しました。他のアカウントが選択済みの子供は、マスターの承認後に選択されます。' : '保存しました';
+  setTimeout(() => { $('sMsg').textContent = ''; $('sMsg').style.color = ''; }, 5000);
+};
+
+// パスワード変更
+$('pSave').onclick = async () => {
+  const cur = $('pCur').value, next = $('pNew').value, msg = $('pMsg');
+  msg.style.color = '';
+  if (!cur || !next) { msg.textContent = '現在のパスワードと新しいパスワードを入力してください'; return; }
+  if (next.length < 6) { msg.textContent = '新しいパスワードは6文字以上にしてください'; return; }
+  if (next !== $('pNew2').value) { msg.textContent = '確認用のパスワードが一致しません'; return; }
+  $('pSave').disabled = true;
+  try {
+    await store.changePassword(cur, next);
+    ['pCur', 'pNew', 'pNew2'].forEach(id => $(id).value = '');
+    msg.style.color = 'var(--ok)'; msg.textContent = 'パスワードを変更しました';
+    log('パスワードを変更');
+  } catch (err) {
+    msg.textContent = ['auth/wrong-password', 'auth/invalid-credential'].includes(err.code) ? '現在のパスワードが違います' : 'エラー: ' + (err.message || err.code);
+  } finally { $('pSave').disabled = false; }
+};
+
+// 本人によるアカウント削除
+$('dSave').onclick = async () => {
+  const pw = $('dPass').value, msg = $('dMsg');
+  if (!pw) { msg.textContent = 'パスワードを入力してください'; return; }
+  if (!confirm('本当にアカウントを削除しますか？この操作は取り消せません。')) return;
+  $('dSave').disabled = true;
+  try {
+    await log(`アカウント「${myName()}」を本人が削除`);
+    await store.deleteAccount(pw);
+    $('dPass').value = '';
+    S.tab = 'cal';
+    $('authErr').style.color = 'var(--ok)'; $('authErr').textContent = 'アカウントを削除しました。';
+  } catch (err) {
+    msg.textContent = ['auth/wrong-password', 'auth/invalid-credential'].includes(err.code) ? 'パスワードが違います' : 'エラー: ' + (err.message || err.code);
+  } finally { $('dSave').disabled = false; }
+};
+
+/* ---------- お知らせ（未回答の出欠） ---------- */
+function renderBell(){
+  const list = unanswered(), due = list.filter(x => x.due);
+  const reqs = isMaster() ? requests() : [], link = needLink();
+  const n = list.length + reqs.length + (link ? 1 : 0);
+  $('bellCount').textContent = n;
+  $('bellCount').classList.toggle('hidden', !n);
+  // ログイン直後、締切（前日）を迎えた未回答・子供の未選択・承認待ちの申請があれば自動で表示＋ブラウザ通知
+  if (!S.noticeShown && S.members.length && me()) {
+    S.noticeShown = true;
+    if (link || reqs.length) openNotices();
+    else if (due.length) {
+      openNotices();
+      if ('Notification' in window && Notification.permission === 'granted')
+        new Notification('WINGS月間予定表', {body:`出欠が未回答の予定が${due.length}件あります`});
+    }
+  }
+}
+function openNotices(){ closeModal(); S.noticeOpen = true; renderNotices(); $('modal').classList.remove('hidden'); }
+function renderNotices(){
+  const list = unanswered(), u = me();
+  const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length;
+  $('modalBody').innerHTML = `<h3>🔔 お知らせ</h3>
+    ${noLink ? `<div class="banner">⚠ ${u.role==='coach'?'指導者名簿の自分':'自分の子供'}がまだ選択されていません。「アカウント設定」で選択してください（選択すると出欠を回答できます）。
+      ${waiting ? '<br>※申請中の子供は、マスターの承認後に選択されます。' : ''}
+      <div class="actions" style="margin-top:6px"><button class="primary" id="nSettings">アカウント設定を開く</button></div></div>` : ''}
+    ${reqs.length ? `<h4>子供の選択の承認待ち（${reqs.length}件）</h4>
+      ${reqs.map(r => `<div class="notice" style="cursor:default">${esc(r.u.name)} さんが <b>${esc(r.k.name)}</b> を選択したいと申請しています
+        <span class="meta">（${esc(takenBy(r.k.id).filter(o => o.id !== r.u.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）</span>
+        <div class="actions" style="margin-top:4px">${reqButtons(r)}</div></div>`).join('')}` : ''}
+    ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
+    ${list.map(({e, m, due}) => {
+      const d = new Date(e.date + 'T00:00');
+      return `<div class="notice ${due?'due':''}" data-date="${e.date}">
+        ${due ? '<b style="color:var(--ng)">【締切】</b>' : ''}${d.getMonth()+1}/${d.getDate()}（${'日月火水木金土'[d.getDay()]}）${esc(e.start || '')}
+        <b>${esc(evLabel(e))}</b> — ${esc(m.name)} の出欠が未回答</div>`;
+    }).join('')}
+    <div class="actions">
+      ${'Notification' in window && Notification.permission === 'default' ? '<button id="nPerm">この端末で通知を受け取る</button>' : ''}
+      <button id="nClose">閉じる</button></div>`;
+  $('nClose').onclick = closeModal;
+  if ($('nSettings')) $('nSettings').onclick = () => { closeModal(); S.tab = 'settings'; S.settingsDirty = false; render(); };
+  bindReqButtons($('modalBody'));
+  if ($('nPerm')) $('nPerm').onclick = () => Notification.requestPermission().then(() => renderNotices());
+  $('modalBody').querySelectorAll('.notice').forEach(n => n.onclick = () => openDay(n.dataset.date));
+}
+$('bellBtn').onclick = openNotices;
+// 時間経過で「終了した予定」のグレー表示・お知らせを更新
+setInterval(() => { if (S.auth) render(); }, 5 * 60 * 1000);
+
+/* ---------- 履歴 ---------- */
+function renderLog(){
+  $('logList').innerHTML = S.logs.map(l => `<li><span class="t">${fmtAt(l.at)}</span><b>${esc(l.byName)}</b>：${esc(l.text)}</li>`).join('') || '<li class="meta">まだ履歴がありません</li>';
+}
+</script>
+</body>
+</html>
