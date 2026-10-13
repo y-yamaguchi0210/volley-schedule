@@ -126,6 +126,15 @@ h4{margin:14px 0 2px;font-size:14px}
 .day.unans:hover{background:#fbd9d9}
 .day.maybe{background:#fff5d1}
 .day.maybe:hover{background:#ffefbd}
+/* 出欠確認タブ：参加＝緑、不参加＝赤、未定＝黄 */
+.day.ao,.day.ao:hover{background:#dcfce7}
+.day.ax,.day.ax:hover{background:#fee2e2}
+.day.am,.day.am:hover{background:#fff5d1}
+.attv{font-size:12px;font-weight:700;margin-top:3px}
+.attv.o{color:var(--ok)}.attv.x{color:var(--ng)}.attv.m{color:var(--maybe)}.attv.u{color:var(--muted);font-weight:400}
+/* カレンダーの子供の参加・不参加の人数（スマホでも表示） */
+.ev .kc{color:var(--muted)}
+.ev .kc span{display:inline-block;margin-right:4px}
 /* コピー */
 .clipbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#eef4ff;border:1px solid #c7d7fb;color:#1e3a8a;padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:13px}
 .clipbar span{flex:1}
@@ -180,6 +189,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 <nav class="tabs hidden" id="tabs">
   <button data-tab="cal" class="on">カレンダー</button>
   <button data-tab="members">メンバー</button>
+  <button data-tab="att" id="attTabBtn" class="hidden">出欠確認</button>
   <button data-tab="duty" id="dutyTabBtn" class="hidden">当番希望日</button>
   <button data-tab="log" class="masterOnly">更新履歴</button>
   <button data-tab="settings">アカウント設定</button>
@@ -227,7 +237,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <span style="--c:var(--custom)">その他（学校行事など）</span>
       <span class="notMaster" style="--c:#f8c9c9">出欠が未回答の日</span>
       <span class="notMaster" style="--c:#fbe7a1">△で回答した日</span>
-      <span>子＝子供の出席数 / 指＝指導者の出席数</span>
+      <span>参加・不参加＝子供の人数 / 指＝指導者の出席数</span>
     </div>
     <div class="grid" id="grid"></div>
   </section>
@@ -253,6 +263,28 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <h3>登録アカウント<span id="userCount"></span></h3>
       <div class="meta" id="userBreak"></div>
       <ul class="list" id="userList"></ul>
+    </div>
+  </section>
+
+  <!-- 出欠確認（子供の出欠をカレンダーで入力） -->
+  <section id="view-att" class="hidden">
+    <div class="banner">お子さんの出欠を入力します。日付をタップするたびに「参加 → 不参加 → 未回答」と切り替わります。選び終わったら「決定」を押してください。入力した内容はカレンダーに反映されます。</div>
+    <div id="attNone" class="card meta hidden">「アカウント設定」で自分の子供を選択すると、出欠を入力できます。</div>
+    <div id="attMain">
+      <div class="calbar">
+        <button id="attPrev">◀</button>
+        <h2 id="attMonth"></h2>
+        <button id="attNext">▶</button>
+      </div>
+      <div class="addrow" style="align-items:center;margin:0 0 10px"><span class="meta" style="flex:none">出欠を入力する子供</span><select id="attKid" style="max-width:260px"></select></div>
+      <div id="attBar" class="clipbar"></div>
+      <div class="legend">
+        <span style="--c:#86efac">参加</span>
+        <span style="--c:#fca5a5">不参加</span>
+        <span style="--c:#fbe7a1">未定（以前の△）</span>
+        <span>✎＝未確定の変更</span>
+      </div>
+      <div class="grid" id="attGrid"></div>
     </div>
   </section>
 
@@ -665,7 +697,7 @@ store.onAuth(a => {
     S.unsubs.forEach(u => typeof u === 'function' && u());
     S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
     S.users = S.members = S.events = S.logs = [];
-    S.dutyPick = null; S.loaded = {};
+    S.dutyPick = null; S.attPick = null; S.attKid = ''; S.loaded = {};
   }
   if (kickIfDeleted()) return;
   ensureMasterProfile();
@@ -703,12 +735,16 @@ function render(){
   $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
   if (!dutyVis && S.tab === 'duty') { S.tab = 'cal'; S.dutyPick = null; }
   if (!isMaster() && S.tab === 'log') S.tab = 'cal';   // 更新履歴はマスターのみ
-  for (const t of ['cal', 'members', 'duty', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
+  // 出欠確認タブは保護者とマスターのみ
+  $('attTabBtn').classList.toggle('hidden', !(inApp && canAttTab()));
+  if (inApp && !canAttTab() && S.tab === 'att') { S.tab = 'cal'; S.attPick = null; }
+  for (const t of ['cal', 'members', 'att', 'duty', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('bellBtn').classList.toggle('hidden', !inApp);
   if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
   if (S.tab === 'cal') renderCal();
   if (S.tab === 'members' && !S.editMember) renderMembers();  // 編集中は入力が消えないよう再描画しない
+  if (S.tab === 'att') renderAtt();
   if (S.tab === 'duty') renderDuty();
   if (S.tab === 'log') renderLog();
   if (S.tab === 'settings' && !S.settingsDirty) renderSettings();
@@ -718,7 +754,9 @@ function render(){
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
   if (S.tab === 'duty' && b.dataset.tab !== 'duty' && !leaveDutyOk()) return;
+  if (S.tab === 'att' && b.dataset.tab !== 'att' && !leaveAttOk()) return;
   if (b.dataset.tab !== 'duty') S.dutyPick = null;
+  if (b.dataset.tab !== 'att') S.attPick = null;
   S.tab = b.dataset.tab; S.settingsDirty = false; S.editMember = null; render();
 });
 
@@ -767,7 +805,8 @@ function renderCal(){
       return `<div class="ev" style="--c:${t.c}">
         <b>${esc(e.title || t.label)}</b>${(e.attachments || []).length ? '📎' : ''}
         ${e.type !== 'off' ? evTime(e) : ''}
-        ${needsAtt(e) ? `<div class="cnt">子${countAtt(e, K)} 指${countAtt(e, C)}${hasEscort(e) ? ` 車${Object.values(e.escort || {}).filter(x => x.car === 'yes').length}台` : ''}</div>` : ''}
+        ${needsAtt(e) ? `<div class="kc"><span>参加${attN(e, 'o')}</span><span>不参加${attN(e, 'x')}</span></div>
+          <div class="cnt">指${countAtt(e, C)}${hasEscort(e) ? ` 車${Object.values(e.escort || {}).filter(x => x.car === 'yes').length}台` : ''}</div>` : ''}
         ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>`
           : isDutyEv(e) && dutyWishers(e).length > 1 ? `<div class="duty">当番:希望${dutyWishers(e).length}人</div>` : ''}
       </div>`;
@@ -911,7 +950,7 @@ function renderDay(date){
         ${(e.attachments || []).length ? `<div class="files">📎 ${e.attachments.map(a => `<button class="filebtn" data-file="${e.id}|${a.id}">${esc(a.name)} <span class="meta">${fmtSize(a.size)}</span></button>`).join('')}</div>` : ''}
         <div class="meta">最終更新：${esc(e.updatedByName || '')} ${e.updatedAt ? fmtAt(e.updatedAt) : ''}</div>
         ${needsAtt(e) ? `
-          <h4>子供の出欠（○ ${countAtt(e, kids())}）</h4>${attTable(e, kids(), '「メンバー」タブで子供を登録してください')}
+          <h4>子供の出欠（参加 ${attN(e, 'o')}人・不参加 ${attN(e, 'x')}人）</h4>${kidAttSummary(e)}
           <h4>指導者の出欠（○ ${countAtt(e, coaches())}）</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}` : ''}
         ${hasEscort(e) ? escortTable(e) : ''}
         ${isMaster() ? `<div class="actions"><button data-copy="${e.id}">📋 コピー</button><button data-edit="${e.id}">予定を編集</button><button class="danger" data-del="${e.id}">削除</button></div>` : ''}
@@ -934,6 +973,7 @@ function renderDay(date){
     cleanupFiles(e.attachments || [], [e.id]);
     log(`${e.date} の予定「${evLabel(e)}」を削除`);
   });
+  $('modalBody').querySelectorAll('[data-goatt]').forEach(b => b.onclick = () => goAtt(b.dataset.goatt));
   $('modalBody').querySelectorAll('[data-file]').forEach(b => b.onclick = () => {
     const [eid, fid] = b.dataset.file.split('|');
     openFile((S.events.find(x => x.id === eid)?.attachments || []).find(a => a.id === fid));
@@ -1013,6 +1053,107 @@ function escortTable(e){
       </div>`;
     }).join('')}`;
 }
+
+/* ---------- 出欠確認（子供の出欠をカレンダーで入力） ---------- */
+const canAttTab = () => isMaster() || (!!me() && roleLabel(me()) === '保護者');
+// 入力できる子供：保護者は自分の子、マスターは全員
+const attKids = () => isMaster() ? kids() : kids().filter(k => myMemberIds().includes(k.id));
+const attN = (e, v) => kids().filter(k => e.attendance?.[k.id]?.v === v).length;
+const attOpen = key => eventsOn(key).filter(e => needsAtt(e) && !isOver(e));
+const ATT_NEXT = {'': 'o', o: 'x', x: '', m: 'o'};
+const ATT_LABEL = {o: '参加', x: '不参加', m: '未定', '': '未回答'};
+// その日の回答（予定が複数ある日は最初の予定の回答）
+const savedAtt = (kid, evs) => evs[0]?.attendance?.[kid]?.v || '';
+// 予定の画面に出す子供の出欠（参加・不参加などの名前一覧）
+function kidAttSummary(e){
+  const K = kids(), a = e.attendance || {}, mine = myMemberIds();
+  if (!K.length) return '<div class="meta">「メンバー」タブで子供を登録してください</div>';
+  const rows = [['o', '参加'], ['x', '不参加'], ['m', '未定'], ['', '未回答']]
+    .map(([v, l]) => [l, K.filter(k => (a[k.id]?.v || '') === v)])
+    .filter(([l, list]) => list.length || l === '参加' || l === '不参加');
+  return `<table class="att">${rows.map(([l, list]) => `<tr><td style="white-space:nowrap;width:6.5em"><b>${l}</b> ${list.length}人</td>
+      <td>${list.map(k => mine.includes(k.id) ? `<span class="star">★</span><b>${esc(k.name)}</b>` : esc(k.name)).join('、') || '<span class="meta">なし</span>'}</td></tr>`).join('')}</table>
+    ${canAttTab() && attKids().length && !isOver(e) ? `<div class="actions"><button data-goatt="${e.date}">✏️ 出欠確認で入力する</button></div>` : ''}`;
+}
+function goAtt(date, kid){
+  if (S.tab === 'duty' && !leaveDutyOk()) return;
+  closeModal(); S.dutyPick = null;
+  if (kid && kid !== S.attKid) { S.attKid = kid; S.attPick = null; }
+  S.tab = 'att'; S.month = new Date(date.slice(0, 7) + '-01T00:00');
+  render();
+}
+function attKidId(){
+  const ks = attKids();
+  if (!ks.some(k => k.id === S.attKid)) S.attKid = ks[0]?.id || '';
+  return S.attKid;
+}
+// 未確定の変更（タップした日のうち、保存済みの回答と違う予定）
+function attChanges(){
+  if (!S.attPick) return [];
+  const kid = S.attPick.kid, out = [];
+  for (const [key, v] of Object.entries(S.attPick.map))
+    for (const e of attOpen(key)) if ((e.attendance?.[kid]?.v || '') !== v) out.push({e, v});
+  return out;
+}
+const leaveAttOk = () => !attChanges().length || confirm('未確定の出欠があります。破棄してよろしいですか？');
+function toggleAtt(key){
+  const evs = attOpen(key), kid = attKidId();
+  if (!evs.length || !kid) return;
+  if (!S.attPick || S.attPick.kid !== kid) S.attPick = {kid, map:{}};
+  const cur = key in S.attPick.map ? S.attPick.map[key] : savedAtt(kid, evs);
+  S.attPick.map[key] = ATT_NEXT[cur] ?? 'o';
+  render();
+}
+async function saveAtt(){
+  const ch = attChanges();
+  if (!ch.length) return;
+  const kid = S.attPick.kid, k = S.members.find(m => m.id === kid);
+  $('attSave').disabled = true;
+  const days = v => [...new Set(ch.filter(c => c.v === v).map(c => c.e.date.slice(5).replace('-', '/')))].join('・');
+  try {
+    for (const {e, v} of ch) await store.update('events', e.id, {['attendance.' + kid]: v ? {v, ...stamp()} : null});
+    log(`${k?.name || ''} の出欠を更新（${[['o', '参加'], ['x', '不参加'], ['', '未回答に戻す']].filter(([v]) => days(v)).map(([v, l]) => `${l}：${days(v)}`).join('／')}）`);
+    S.attPick = null;
+    alert('出欠を確定しました。');
+  } catch (err) { saveErr(err); }
+  render();
+}
+function renderAtt(){
+  const y = S.month.getFullYear(), m = S.month.getMonth(), ks = attKids(), kid = attKidId();
+  $('attNone').classList.toggle('hidden', !!kid);
+  $('attMain').classList.toggle('hidden', !kid);
+  if (!kid) return;
+  if (S.attPick && S.attPick.kid !== kid) S.attPick = null;
+  $('attMonth').textContent = `${y}年 ${m+1}月`;
+  $('attKid').innerHTML = ks.map(k => `<option value="${k.id}" ${k.id === kid ? 'selected' : ''}>${esc(k.name)}${gradeOf(k) ? `（${esc(gradeOf(k))}）` : ''}</option>`).join('');
+  const map = S.attPick?.map || {}, n = new Set(attChanges().map(c => c.e.date)).size;
+  $('attBar').innerHTML = `<span>📝 日付をタップ：参加 → 不参加 → 未回答（月をまたいでもOK）→「決定」で確定${n ? `<br><b>未確定の変更：${n}日</b>` : ''}</span>
+    <button class="primary" id="attSave" ${n ? '' : 'disabled'}>決定</button>${n ? '<button id="attReset">変更を元に戻す</button>' : ''}`;
+  $('attSave').onclick = saveAtt;
+  if ($('attReset')) $('attReset').onclick = () => { S.attPick = null; render(); };
+  const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), today = ymd(new Date());
+  let html = ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
+  const weeks = Math.ceil((first.getDay() + new Date(y, m+1, 0).getDate()) / 7);
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(needsAtt), open = attOpen(key);
+    const done = evs.length && !open.length;
+    const saved = savedAtt(kid, open.length ? open : evs);
+    const v = open.length && key in map ? map[key] : saved, changed = open.length && key in map && map[key] !== saved;
+    const items = evs.map(e => `<div class="ev" style="--c:${typeOf(e).c}"><b>${esc(evLabel(e))}</b>${e.type !== 'off' ? evTime(e) : ''}</div>`).join('')
+      + (evs.length ? `<div class="attv ${v || 'u'}">${changed ? '✎' : ''}${ATT_LABEL[v] ?? ''}</div>` : '');
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${open.length && v ? 'a' + v : ''} ${open.length?'pastable':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
+      <span class="num">${d.getDate()}</span>${items}</div>`;
+  }
+  $('attGrid').innerHTML = html;
+  $('attGrid').querySelectorAll('.day').forEach(el => el.onclick = () => toggleAtt(el.dataset.date));
+}
+$('attPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
+$('attNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
+$('attKid').onchange = () => {
+  if (!leaveAttOk()) { $('attKid').value = S.attKid; return; }
+  S.attKid = $('attKid').value; S.attPick = null; render();
+};
 
 /* ---------- 当番希望日 ---------- */
 // 当番希望をとる予定（練習・体験会）
@@ -1629,7 +1770,7 @@ function renderNotices(){
     ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length || todo.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
     ${list.map(({e, m, due}) => {
       const d = new Date(e.date + 'T00:00');
-      return `<div class="notice ${due?'due':''}" data-date="${e.date}">
+      return `<div class="notice ${due?'due':''}" data-date="${e.date}" data-mem="${m.id}">
         ${due ? '<b style="color:var(--ng)">【締切】</b>' : ''}${d.getMonth()+1}/${d.getDate()}（${'日月火水木金土'[d.getDay()]}）${esc(e.start || '')}
         <b>${esc(evLabel(e))}</b> — ${esc(m.name)} の出欠が未回答</div>`;
     }).join('')}
@@ -1640,7 +1781,11 @@ function renderNotices(){
   if ($('nSettings')) $('nSettings').onclick = () => { closeModal(); S.tab = 'settings'; S.settingsDirty = false; render(); };
   bindReqButtons($('modalBody'));
   if ($('nPerm')) $('nPerm').onclick = () => Notification.requestPermission().then(() => renderNotices());
-  $('modalBody').querySelectorAll('.notice[data-date]').forEach(n => n.onclick = () => openDay(n.dataset.date));
+  // 子供の出欠 → 出欠確認タブ、指導者の出欠 → その日の予定
+  $('modalBody').querySelectorAll('.notice[data-date]').forEach(n => n.onclick = () => {
+    const m = S.members.find(x => x.id === n.dataset.mem);
+    if (m?.type === 'kid' && canAttTab()) goAtt(n.dataset.date, m.id); else openDay(n.dataset.date);
+  });
   // 当番希望日の未入力 → その月の当番希望日を開く
   $('modalBody').querySelectorAll('[data-dmonth]').forEach(n => n.onclick = () => {
     closeModal(); S.tab = 'duty'; S.month = new Date(n.dataset.dmonth + '-01T00:00'); render();
