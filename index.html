@@ -41,6 +41,8 @@ header .who{font-size:13px;color:var(--muted)}
 nav.tabs{display:flex;gap:4px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line)}
 nav.tabs button{border:none;background:none;padding:8px 12px;border-radius:8px;color:var(--muted)}
 nav.tabs button.on{background:#e8efff;color:var(--accent);font-weight:600}
+nav.tabs button.alert{background:#fde7e7;color:var(--ng);font-weight:600}  /* 当番希望日が未入力 */
+button.danger.on{background:var(--ng);border-color:var(--ng);color:#fff}
 main{max-width:1100px;margin:0 auto;padding:16px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
 .banner{background:#fff7e6;border:1px solid #f6d58a;color:#7a5200;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:12px}
@@ -202,7 +204,6 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <button id="prevM">◀</button>
       <h2 id="monthTitle"></h2>
       <button id="nextM">▶</button>
-      <button id="todayBtn">今日</button>
       <button id="bulkDelBtn" class="danger masterOnly">🗑 一括削除</button>
     </div>
     <div class="legend">
@@ -256,7 +257,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <button id="dutyPrev">◀</button>
       <h2 id="dutyMonth"></h2>
       <button id="dutyNext">▶</button>
-      <button id="dutyToday">今日</button>
+      <button id="dutyNG" class="danger notMaster">当番不可</button>
     </div>
     <div class="legend">
       <span style="--c:var(--practice)">練習</span>
@@ -637,6 +638,7 @@ store.onAuth(a => {
         rows = rows.filter(u => !u.deleted);
       }
       S[c] = rows;
+      (S.loaded ||= {})[c] = true;
       if (kickIfDeleted()) return;
       ensureMasterProfile(); render();
     }));
@@ -646,7 +648,7 @@ store.onAuth(a => {
     S.unsubs.forEach(u => typeof u === 'function' && u());
     S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
     S.users = S.members = S.events = S.logs = [];
-    S.dutyPick = null;
+    S.dutyPick = null; S.loaded = {};
   }
   if (kickIfDeleted()) return;
   ensureMasterProfile();
@@ -681,6 +683,7 @@ function render(){
   // 当番希望日タブはマスターがオンにしたときだけ表示（マスターには常に表示）
   const dutyVis = inApp && (isMaster() || dutyTabOn());
   $('dutyTabBtn').classList.toggle('hidden', !dutyVis);
+  $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
   if (!dutyVis && S.tab === 'duty') { S.tab = 'cal'; S.dutyPick = null; }
   for (const t of ['cal', 'members', 'duty', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
@@ -778,7 +781,6 @@ async function pasteAll(){
 }
 $('prevM').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('nextM').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
-$('todayBtn').onclick = () => { S.month = new Date(); S.month.setDate(1); render(); };
 
 /* ---------- 予定の一括削除（マスターのみ） ---------- */
 // カレンダー上で日をタップして選択 → まとめて削除
@@ -1047,7 +1049,10 @@ function renderDutyBar(){
   if (!canWish()) return;
   const ch = dutyChanges(), days = list => new Set(list.map(c => c.e.date)).size;
   const add = days(ch.filter(c => c.want)), del = days(ch.filter(c => !c.want));
-  $('dutyBar').innerHTML = `<span>🙋 当番に入れる日をタップして選択（複数可・月をまたいでもOK）→「決定」で確定します。<br>
+  const k = monthKey(), mm = S.month.getMonth() + 1;
+  const state = (me().dutyNG || {})[k] ? `<b>📵 ${mm}月は「当番不可」で回答済みです</b><br>`
+    : dutyTodo().includes(k) ? `<b style="color:var(--ng)">⚠ ${mm}月の当番希望日が未入力です（入れる日がない場合は「当番不可」を押してください）</b><br>` : '';
+  $('dutyBar').innerHTML = `<span>${state}🙋 当番に入れる日をタップして選択（複数可・月をまたいでもOK）→「決定」で確定します。<br>
       選択中 ${S.dutyPick.size}日${ch.length ? `　<b>未確定の変更：${add ? `追加${add}日` : ''}${add && del ? '・' : ''}${del ? `取り消し${del}日` : ''}</b>` : ''}</span>
     <button class="primary" id="dutySave" ${ch.length ? '' : 'disabled'}>決定</button>
     ${ch.length ? '<button id="dutyReset">変更を元に戻す</button>' : ''}`;
@@ -1062,9 +1067,48 @@ async function saveDutyPick(){
   try {
     for (const {e, want} of ch) await store.update('events', e.id, {['dutyWish.' + uid]: want ? {at:Date.now()} : null});
     const add = ch.filter(c => c.want), del = ch.filter(c => !c.want);
+    // 希望を出した月の「当番不可」は解除
+    const ng = me().dutyNG || {};
+    for (const k of new Set(add.map(c => c.e.date.slice(0, 7)))) if (ng[k]) await store.update('users', uid, {['dutyNG.' + k]: null});
     log(`当番希望を更新${add.length ? `（希望：${fmt(add)}）` : ''}${del.length ? `（取り消し：${fmt(del)}）` : ''}`);
     S.dutyPick = null;
     alert('当番希望を確定しました。');
+  } catch (err) { saveErr(err); }
+  render();
+}
+// 当番希望が未入力の月（これからの練習があり、希望も「当番不可」もない月）
+const monthKey = () => `${S.month.getFullYear()}-${pad(S.month.getMonth() + 1)}`;
+function dutyTodo(){
+  const u = me();
+  if (!canWish() || !dutyTabOn() || !u) return [];
+  const uid = S.auth.uid, ng = u.dutyNG || {}, need = new Set(), done = new Set();
+  for (const e of S.events) {
+    if (!isDutyEv(e)) continue;
+    const k = e.date.slice(0, 7);
+    if (!isOver(e)) need.add(k);
+    if (e.dutyWish?.[uid] || fixedDuty(e, uid)) done.add(k);
+  }
+  return [...need].filter(k => !done.has(k) && !ng[k]).sort();
+}
+// 表示中の月を「当番不可」にする／取り消す
+async function toggleDutyNG(){
+  if (!canWish()) return;
+  const uid = S.auth.uid, k = monthKey(), mm = S.month.getMonth() + 1, on = !(me().dutyNG || {})[k];
+  try {
+    if (on) {
+      const evs = S.events.filter(e => isDutyEv(e) && !isOver(e) && e.date.startsWith(k));
+      if (evs.some(e => fixedDuty(e, uid))) { alert(`${mm}月は当番に決定している日があるため、当番不可にできません。変更する場合はマスターに連絡してください。`); return; }
+      const mine = evs.filter(e => e.dutyWish?.[uid]);
+      if (!confirm(mine.length ? `${mm}月の当番希望（${new Set(mine.map(e => e.date)).size}日）を取り消して「当番不可」にしますか？` : `${mm}月は当番に入れる日がない（当番不可）と回答しますか？`)) return;
+      for (const e of mine) await store.update('events', e.id, {['dutyWish.' + uid]: null});
+      await store.update('users', uid, {['dutyNG.' + k]: Date.now()});
+      log(`${mm}月の当番を「当番不可」で回答`);
+    } else {
+      if (!confirm(`${mm}月の「当番不可」を取り消しますか？`)) return;
+      await store.update('users', uid, {['dutyNG.' + k]: null});
+      log(`${mm}月の「当番不可」を取り消し`);
+    }
+    if (S.dutyPick) [...S.dutyPick].filter(d => d.startsWith(k)).forEach(d => S.dutyPick.delete(d));
   } catch (err) { saveErr(err); }
   render();
 }
@@ -1080,6 +1124,12 @@ function renderDuty(){
   }
   if (pick && !S.dutyPick) S.dutyPick = myWishDates();
   renderDutyBar();
+  if (pick) {
+    const ng = !!(me().dutyNG || {})[monthKey()];
+    $('dutyNG').classList.toggle('on', ng);
+    $('dutyNG').textContent = ng ? '✔ 当番不可（取り消す）' : '当番不可';
+    $('dutyNG').disabled = !ng && !S.events.some(e => isDutyEv(e) && !isOver(e) && e.date.startsWith(monthKey()));
+  }
   const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), today = ymd(new Date());
   let html = ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
   const weeks = Math.ceil((first.getDay() + new Date(y, m+1, 0).getDate()) / 7);
@@ -1150,7 +1200,7 @@ function bindDuty(root){
 }
 $('dutyPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('dutyNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
-$('dutyToday').onclick = () => { S.month = new Date(); S.month.setDate(1); render(); };
+$('dutyNG').onclick = toggleDutyNG;
 
 /* ---------- 予定の追加・編集 ---------- */
 function editEvent(ev, date){
@@ -1522,14 +1572,14 @@ $('dSave').onclick = async () => {
 /* ---------- お知らせ（未回答の出欠） ---------- */
 function renderBell(){
   const list = unanswered(), due = list.filter(x => x.due);
-  const reqs = isMaster() ? requests() : [], link = needLink();
-  const n = list.length + reqs.length + (link ? 1 : 0);
+  const reqs = isMaster() ? requests() : [], link = needLink(), todo = dutyTodo();
+  const n = list.length + reqs.length + (link ? 1 : 0) + todo.length;
   $('bellCount').textContent = n;
   $('bellCount').classList.toggle('hidden', !n);
   // ログイン直後、締切（前日）を迎えた未回答・子供の未選択・承認待ちの申請があれば自動で表示＋ブラウザ通知
-  if (!S.noticeShown && S.members.length && me()) {
+  if (!S.noticeShown && S.members.length && me() && S.loaded?.events) {
     S.noticeShown = true;
-    if (link || reqs.length) openNotices();
+    if (link || reqs.length || todo.length) openNotices();
     else if (due.length) {
       openNotices();
       if ('Notification' in window && Notification.permission === 'granted')
@@ -1540,8 +1590,10 @@ function renderBell(){
 function openNotices(){ closeModal(); S.noticeOpen = true; renderNotices(); $('modal').classList.remove('hidden'); }
 function renderNotices(){
   const list = unanswered(), u = me();
-  const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length;
+  const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length, todo = dutyTodo();
   $('modalBody').innerHTML = `<h3>🔔 お知らせ</h3>
+    ${todo.map(k => `<div class="notice due" data-dmonth="${k}">🧺 <b>${+k.slice(5)}月の当番希望日が未入力です</b><br>
+      <span class="meta">当番に入れる日を選んで「決定」、入れる日がない場合は「当番不可」を押してください。</span></div>`).join('')}
     ${noLink ? `<div class="banner">⚠ ${u.role==='coach'?'指導者名簿の自分':'自分の子供'}がまだ選択されていません。「アカウント設定」で選択してください（選択すると出欠を回答できます）。
       ${waiting ? '<br>※申請中の子供は、マスターの承認後に選択されます。' : ''}
       <div class="actions" style="margin-top:6px"><button class="primary" id="nSettings">アカウント設定を開く</button></div></div>` : ''}
@@ -1549,7 +1601,7 @@ function renderNotices(){
       ${reqs.map(r => `<div class="notice" style="cursor:default">${esc(r.u.name)} さんが <b>${esc(r.k.name)}</b> を選択したいと申請しています
         <span class="meta">（${esc(takenBy(r.k.id).filter(o => o.id !== r.u.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）</span>
         <div class="actions" style="margin-top:4px">${reqButtons(r)}</div></div>`).join('')}` : ''}
-    ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
+    ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length || todo.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
     ${list.map(({e, m, due}) => {
       const d = new Date(e.date + 'T00:00');
       return `<div class="notice ${due?'due':''}" data-date="${e.date}">
@@ -1563,7 +1615,11 @@ function renderNotices(){
   if ($('nSettings')) $('nSettings').onclick = () => { closeModal(); S.tab = 'settings'; S.settingsDirty = false; render(); };
   bindReqButtons($('modalBody'));
   if ($('nPerm')) $('nPerm').onclick = () => Notification.requestPermission().then(() => renderNotices());
-  $('modalBody').querySelectorAll('.notice').forEach(n => n.onclick = () => openDay(n.dataset.date));
+  $('modalBody').querySelectorAll('.notice[data-date]').forEach(n => n.onclick = () => openDay(n.dataset.date));
+  // 当番希望日の未入力 → その月の当番希望日を開く
+  $('modalBody').querySelectorAll('[data-dmonth]').forEach(n => n.onclick = () => {
+    closeModal(); S.tab = 'duty'; S.month = new Date(n.dataset.dmonth + '-01T00:00'); render();
+  });
 }
 $('bellBtn').onclick = openNotices;
 // 時間経過で「終了した予定」のグレー表示・お知らせを更新
