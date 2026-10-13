@@ -113,6 +113,7 @@ h4{margin:14px 0 2px;font-size:14px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .addrow{display:flex;gap:8px;margin-top:8px}
 .log li{display:block;font-size:13px}
+.list li.ghead{background:#f5f6f8;padding:6px 8px;margin-top:6px}
 .log .t{color:var(--muted);font-size:12px;margin-right:6px}
 /* 終了した予定の日 */
 .day.done{background:#d3d6db}
@@ -233,7 +234,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
         <h3>子供（選手）<span id="kidCount"></span></h3>
         <div class="meta" id="kidBreak"></div>
         <ul class="list" id="kidList"></ul>
-        <div class="addrow masterOnly"><input id="kidName" placeholder="名前"><select id="kidGrade" class="gradeSel" style="max-width:90px"></select><select id="kidSib" style="max-width:170px"></select><button class="primary" id="addKid">追加</button></div>
+        <div class="addrow masterOnly"><input id="kidName" placeholder="名前"><select id="kidGender" class="genderSel" style="max-width:80px"></select><select id="kidGrade" class="gradeSel" style="max-width:90px"></select><select id="kidSib" style="max-width:170px"></select><button class="primary" id="addKid">追加</button></div>
       </div>
       <div class="card">
         <h3>指導者<span id="coachCount"></span></h3>
@@ -498,6 +499,10 @@ const GRADES = ['6年', '5年', '4年', '3年', '2年', '1年'];
 const gradeRank = g => { const i = GRADES.indexOf(g); if (i >= 0) return i; const n = parseInt(String(g).replace(/[０-９]/g, c => c.charCodeAt(0) - 0xFEE0)); return n ? 6 - n : 99; };
 const gradeOptions = (sel = '') => `<option value="">学年</option>` + GRADES.map(g => `<option ${g===sel?'selected':''}>${g}</option>`).join('');
 document.querySelectorAll('.gradeSel').forEach(s => s.innerHTML = gradeOptions());
+// 子供の男女
+const GENDERS = ['女子', '男子'];
+const genderOptions = (sel = '') => `<option value="">男女</option>` + GENDERS.map(g => `<option ${g===sel?'selected':''}>${g}</option>`).join('');
+document.querySelectorAll('.genderSel').forEach(s => s.innerHTML = genderOptions());
 // 学年が未設定でも、名前に「６年」などが含まれていればそこから判定（全角数字も対応）
 const gradeOf = m => {
   const norm = s => String(s || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1369,6 +1374,7 @@ function renderMembers(){
       const others = kids().filter(k => k.id !== m.id);
       return `<li style="flex-wrap:wrap">
       <input id="emName" value="${esc(m.name)}" style="flex:1;min-width:120px">
+      ${kid ? `<select id="emGender" style="max-width:80px">${genderOptions(m.gender)}</select>` : ''}
       <select id="emSub" style="max-width:110px">${kid ? gradeOptions(gradeOf(m)) : posOptions(m.position)}</select>
       <button class="primary" id="emSave">保存</button><button id="emCancel">取消</button>
       ${kid && others.length ? `<div style="width:100%"><div class="meta">兄弟姉妹（チェックした子と同じ家族になります）</div>
@@ -1386,7 +1392,7 @@ function renderMembers(){
     .map(([k, n]) => `${k} ${n}人`).concat(list.some(m => !keys.includes(f(m))) ? [`未設定 ${list.filter(m => !keys.includes(f(m))).length}人`] : []).join('・');
   const K = kids(), C = coaches();
   $('kidCount').textContent = `　${K.length}人`;
-  $('kidBreak').textContent = breakdown(K, GRADES, gradeOf);
+  $('kidBreak').textContent = [breakdown(K, GENDERS, m => m.gender), breakdown(K, GRADES, gradeOf)].filter(Boolean).join(' ／ ');
   $('coachCount').textContent = `　${C.length}人`;
   $('coachBreak').textContent = breakdown(C, POSITIONS, m => m.position);
   const U = S.users.filter(u => roleLabel(u) !== 'マスター');
@@ -1398,20 +1404,25 @@ function renderMembers(){
   const homes = new Set(P.flatMap(u => (u.childIds || []).map(id => famOf[id]).filter(Boolean))).size;
   const noKid = P.filter(u => !(u.childIds || []).some(id => famOf[id])).length;
   $('userBreak').textContent = `保護者 ${P.length}人（${homes}家庭${noKid ? `・子供未設定 ${noKid}人` : ''}）・指導者 ${U.filter(u => u.role === 'coach').length}人`;
-  $('kidList').innerHTML = kids().map(li).join('') || '<li class="meta">まだ登録がありません</li>';
+  // 子供は女子・男子に分けて表示（未設定の子は最後）
+  $('kidList').innerHTML = [...GENDERS, ''].map(g => [g, K.filter(k => (GENDERS.includes(k.gender) ? k.gender : '') === g)])
+    .filter(([, list]) => list.length)
+    .map(([g, list]) => `<li class="ghead"><span><b>${g || '男女未設定'}</b> <span class="meta">${list.length}人</span></span></li>` + list.map(li).join('')).join('')
+    || '<li class="meta">まだ登録がありません</li>';
   $('coachList').innerHTML = coaches().map(li).join('') || '<li class="meta">まだ登録がありません</li>';
   document.querySelectorAll('[data-em]').forEach(b => b.onclick = () => { S.editMember = b.dataset.em; renderMembers(); $('emName').focus(); });
   if ($('emSave')) {
     $('emCancel').onclick = () => { S.editMember = null; renderMembers(); };
     $('emSave').onclick = async () => {
       const m = S.members.find(x => x.id === S.editMember), kid = m.type === 'kid';
-      const name = $('emName').value.trim(), sub = $('emSub').value;
+      const name = $('emName').value.trim(), sub = $('emSub').value, gender = kid ? $('emGender').value : '';
       if (!name) { alert('名前を入力してください'); return; }
+      if (kid && !gender) { alert('女子・男子を選択してください'); return; }
       if (!sub) { alert(kid ? '学年を選択してください' : '役職を選択してください'); return; }
       const sibIds = [...document.querySelectorAll('.emSib:checked')].map(c => c.value);
       S.editMember = null;
-      await store.update('members', m.id, kid ? {name, grade:sub} : {name, position:sub});
-      log(`${kid?'子供':'指導者'}「${m.name}」を「${name}（${sub}）」に編集`);
+      await store.update('members', m.id, kid ? {name, grade:sub, gender} : {name, position:sub});
+      log(`${kid?'子供':'指導者'}「${m.name}」を「${name}（${kid ? gender + '・' : ''}${sub}）」に編集`);
       if (kid) await setSiblings(m, sibIds);
       renderMembers();
     };
@@ -1447,7 +1458,8 @@ async function addMember(type, nameEl, subEl){
   if (!isMaster()) return;
   const kid = type === 'kid';
   const name = nameEl.value.trim(); if (!name) return;
-  const sub = subEl.value;
+  const sub = subEl.value, gender = kid ? $('kidGender').value : '';
+  if (kid && !gender) { alert('女子・男子を選択してください'); return; }
   if (!sub) { alert(kid ? '学年を選択してください' : '役職を選択してください'); return; }
   // 兄弟が選ばれていれば同じ familyId をつける
   const sib = kid && S.members.find(x => x.id === $('kidSib').value);
@@ -1456,9 +1468,9 @@ async function addMember(type, nameEl, subEl){
     familyId = sib.familyId || sib.id;
     if (!sib.familyId) await store.update('members', sib.id, {familyId});
   }
-  await store.add('members', {type, name, ...(kid ? {grade:sub, familyId} : {position:sub}), ...stamp()});
-  log(`${kid?'子供':'指導者'}「${name}（${sub}）」を追加${sib ? `（${sib.name}の兄弟姉妹）` : ''}`);
-  nameEl.value = ''; subEl.value = ''; if (kid) $('kidSib').value = '';
+  await store.add('members', {type, name, ...(kid ? {grade:sub, gender, familyId} : {position:sub}), ...stamp()});
+  log(`${kid?'子供':'指導者'}「${name}（${kid ? gender + '・' : ''}${sub}）」を追加${sib ? `（${sib.name}の兄弟姉妹）` : ''}`);
+  nameEl.value = ''; subEl.value = ''; if (kid) { $('kidSib').value = ''; $('kidGender').value = ''; }
 }
 // 兄弟姉妹（同じ familyId を持つ子）
 const siblingsOf = m => m.familyId ? kids().filter(k => k.id !== m.id && k.familyId === m.familyId) : [];
