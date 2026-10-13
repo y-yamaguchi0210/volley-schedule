@@ -141,6 +141,8 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 .escar{display:flex;align-items:center;gap:4px;font-size:13px}
 .escar input:disabled{background:#f1f2f4}
 .star{color:#d97706}
+.evitem.past{opacity:.6}
+#dutyList .evitem{background:#fff}
 @media (max-width:640px){
   main{padding:8px}
   .day{min-height:72px;padding:2px}
@@ -161,6 +163,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 <nav class="tabs hidden" id="tabs">
   <button data-tab="cal" class="on">カレンダー</button>
   <button data-tab="members">メンバー</button>
+  <button data-tab="duty">当番希望日</button>
   <button data-tab="log">更新履歴</button>
   <button data-tab="settings">アカウント設定</button>
 </nav>
@@ -235,6 +238,17 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <div class="meta" id="userBreak"></div>
       <ul class="list" id="userList"></ul>
     </div>
+  </section>
+
+  <!-- 当番希望日 -->
+  <section id="view-duty" class="hidden">
+    <div class="banner">練習の日に当番に入れる場合は「🙋 当番に入れる」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーに表示されます。</div>
+    <div class="calbar">
+      <button id="dutyPrev">◀</button>
+      <h2 id="dutyMonth"></h2>
+      <button id="dutyNext">▶</button>
+    </div>
+    <div id="dutyList"></div>
   </section>
 
   <!-- 履歴 -->
@@ -647,12 +661,13 @@ function render(){
   $('who').textContent = inApp ? `${myName()} さん（${isMaster() ? 'マスター' : roleLabel(me())}）でログイン中` : '';
   document.body.classList.toggle('is-master', isMaster());
   if (!isMaster()) S.editMember = null;
-  for (const t of ['cal', 'members', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
+  for (const t of ['cal', 'members', 'duty', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('bellBtn').classList.toggle('hidden', !inApp);
   if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
   if (S.tab === 'cal') renderCal();
   if (S.tab === 'members' && !S.editMember) renderMembers();  // 編集中は入力が消えないよう再描画しない
+  if (S.tab === 'duty') renderDuty();
   if (S.tab === 'log') renderLog();
   if (S.tab === 'settings' && !S.settingsDirty) renderSettings();
   renderBell();
@@ -705,7 +720,8 @@ function renderCal(){
         <b>${esc(e.title || t.label)}</b>${(e.attachments || []).length ? '📎' : ''}
         ${e.type !== 'off' ? `<span class="tm">${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>` : ''}
         ${needsAtt(e) ? `<div class="cnt">子${countAtt(e, K)} 指${countAtt(e, C)}${hasEscort(e) ? ` 車${Object.values(e.escort || {}).filter(x => x.car === 'yes').length}台` : ''}</div>` : ''}
-        ${(e.duty || []).length ? `<div class="duty">当番:${esc(e.duty.join('・'))}</div>` : ''}
+        ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>`
+          : isDutyEv(e) && dutyWishers(e).length > 1 ? `<div class="duty">当番:希望${dutyWishers(e).length}人</div>` : ''}
       </div>`;
     }).join('');
     html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${mine} ${S.clip?'pastable':''} ${S.clip&&S.pasteDates.has(key)?'picked':''} ${S.delMode?'delable':''} ${S.delMode&&S.delDates.has(key)?'delpicked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
@@ -842,7 +858,8 @@ function renderDay(date){
         <div class="head"><span class="tag">${t.label}</span><b>${esc(e.title || t.label)}</b>
           ${e.type !== 'off' ? `<span>${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>` : ''}</div>
         ${e.place ? `<div>📍 ${esc(e.place)}</div>` : ''}
-        <div>🧺 当番：${(e.duty || []).length ? esc(e.duty.join('、')) : '<span class="meta">未定</span>'}</div>
+        <div>🧺 当番：${dutyShown(e).length ? esc(dutyShown(e).join('、'))
+          : isDutyEv(e) && dutyWishers(e).length ? `<span class="meta">未定（希望：${esc(dutyWishers(e).map(w => w.name).join('、'))}）</span>` : '<span class="meta">未定</span>'}</div>
         ${e.note ? `<div style="white-space:pre-wrap">📝 ${esc(e.note)}</div>` : ''}
         ${(e.attachments || []).length ? `<div class="files">📎 ${e.attachments.map(a => `<button class="filebtn" data-file="${e.id}|${a.id}">${esc(a.name)} <span class="meta">${fmtSize(a.size)}</span></button>`).join('')}</div>` : ''}
         <div class="meta">最終更新：${esc(e.updatedByName || '')} ${e.updatedAt ? fmtAt(e.updatedAt) : ''}</div>
@@ -858,7 +875,8 @@ function renderDay(date){
       ${isMaster() ? '<button class="primary" id="addEv">＋ 予定を追加</button>' : ''}<button id="closeM">閉じる</button></div>`;
   $('closeM').onclick = closeModal;
   if ($('addEv')) $('addEv').onclick = () => editEvent(null, date);
-  const setClip = list => { S.clip = list.map(({id, attendance, escort, date, ...rest}) => rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
+  // 当番希望と、希望から決めた当番はコピーしない
+  const setClip = list => { S.clip = list.map(({id, attendance, escort, dutyWish, dutyUid, date, ...rest}) => dutyUid ? {...rest, duty:[]} : rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
   $('modalBody').querySelectorAll('[data-copy]').forEach(b => b.onclick = () => setClip([S.events.find(e => e.id === b.dataset.copy)]));
   if ($('copyAll')) $('copyAll').onclick = () => setClip(evs);
   $('modalBody').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editEvent(S.events.find(e => e.id === b.dataset.edit), date));
@@ -948,6 +966,75 @@ function escortTable(e){
       </div>`;
     }).join('')}`;
 }
+
+/* ---------- 当番希望日 ---------- */
+// 当番希望をとる予定（練習・体験会）
+const isDutyEv = e => e.type === 'practice' || e.type === 'trial';
+// 当番を希望している保護者（希望した順。削除済みアカウントは除く）
+const dutyWishers = e => Object.entries(e.dutyWish || {}).filter(([, w]) => w)
+  .map(([uid, w]) => ({uid, at:w.at, name:S.users.find(u => u.id === uid)?.name}))
+  .filter(w => w.name).sort((a, b) => a.at - b.at);
+// 表示する当番：決定済み（またはマスターが予定編集で入力）を優先、なければ希望者が1人ならその人
+const dutyShown = e => {
+  if ((e.duty || []).length) return e.duty;
+  const ws = isDutyEv(e) ? dutyWishers(e) : [];
+  return ws.length === 1 ? [ws[0].name] : [];
+};
+const canWish = () => !isMaster() && roleLabel(me()) === '保護者';
+const saveErr = err => alert('保存できませんでした：' + (err?.code === 'permission-denied' ? '権限がありません（Firestoreのルールの更新が必要です）' : (err?.message || err)));
+function renderDuty(){
+  const y = S.month.getFullYear(), m = S.month.getMonth(), pre = `${y}-${pad(m+1)}-`, uid = S.auth.uid;
+  $('dutyMonth').textContent = `${y}年 ${m+1}月`;
+  const evs = S.events.filter(e => isDutyEv(e) && e.date.startsWith(pre))
+    .sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
+  $('dutyList').innerHTML = evs.map(e => {
+    const d = new Date(e.date + 'T00:00'), over = isOver(e), ws = dutyWishers(e), shown = dutyShown(e);
+    const on = !!e.dutyWish?.[uid], fixed = e.dutyUid === uid && (e.duty || []).length;
+    const status = shown.length ? `<b>🧺 当番：${esc(shown.join('、'))}</b>${(e.duty || []).length ? '' : ' <span class="meta">（希望者1人のため）</span>'}`
+      : ws.length ? `<b style="color:var(--maybe)">希望${ws.length}人・マスターの決定待ち</b>` : '<span class="meta">当番の希望者はまだいません</span>';
+    return `<div class="evitem ${over ? 'past' : ''}" style="--c:${typeOf(e).c}">
+      <div class="head"><b>${d.getMonth()+1}/${d.getDate()}（${'日月火水木金土'[d.getDay()]}）</b><span>${esc(evLabel(e))}</span>
+        <span class="meta">${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}${e.place ? '　📍' + esc(e.place) : ''}</span></div>
+      <div>${status}
+        ${isMaster() && !over && e.dutyUid && (e.duty || []).length ? ` <button data-dundo="${e.id}">決定を取り消す</button>` : ''}</div>
+      ${e.dutyUid && (e.duty || []).length && !ws.some(w => w.uid === e.dutyUid) ? '<div class="meta">※当番に決定した方の希望が取り消されています</div>' : ''}
+      ${ws.length ? `<ul class="list">${ws.map(w => `<li><span>${w.uid === uid ? '<span class="star">★</span>' : ''}${esc(w.name)} <span class="meta">希望 ${fmtAt(w.at)}</span></span>
+        ${isMaster() && !over ? (e.dutyUid === w.uid && (e.duty || []).length ? '<b style="color:var(--ok)">当番に決定</b>' : `<button class="primary" data-dpick="${e.id}|${w.uid}">当番に決定</button>`) : ''}</li>`).join('')}</ul>` : ''}
+      ${canWish() && !over ? `<div class="actions">${fixed ? '<span class="meta">あなたが当番に決定しています（変更はマスターに連絡してください）</span>'
+        : `<button class="${on ? '' : 'primary'}" data-dwish="${e.id}">${on ? '希望を取り消す' : '🙋 当番に入れる'}</button>`}</div>` : ''}
+    </div>`;
+  }).join('') || '<div class="card meta">この月の練習の予定はまだありません。</div>';
+  $('dutyList').querySelectorAll('[data-dwish]').forEach(b => b.onclick = async () => {
+    const e = S.events.find(x => x.id === b.dataset.dwish);
+    if (!e || !canWish()) return;
+    const on = !e.dutyWish?.[uid];
+    b.disabled = true;
+    try {
+      await store.update('events', e.id, {['dutyWish.' + uid]: on ? {at:Date.now()} : null});
+      log(`${e.date} ${evLabel(e)}：当番を${on ? '希望' : '希望取り消し'}`);
+    } catch (err) { b.disabled = false; saveErr(err); }
+  });
+  $('dutyList').querySelectorAll('[data-dpick]').forEach(b => b.onclick = async () => {
+    if (!isMaster()) return;
+    const [eid, wuid] = b.dataset.dpick.split('|'), e = S.events.find(x => x.id === eid), w = e && dutyWishers(e).find(x => x.uid === wuid);
+    if (!w || !confirm(`${e.date} ${evLabel(e)} の当番を ${w.name} さんに決定しますか？`)) return;
+    b.disabled = true;
+    try {
+      await store.update('events', e.id, {duty:[w.name], dutyUid:w.uid, updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now()});
+      log(`${e.date} ${evLabel(e)}：当番を ${w.name} さんに決定`);
+    } catch (err) { b.disabled = false; saveErr(err); }
+  });
+  $('dutyList').querySelectorAll('[data-dundo]').forEach(b => b.onclick = async () => {
+    const e = S.events.find(x => x.id === b.dataset.dundo);
+    if (!isMaster() || !e || !confirm(`${e.date} ${evLabel(e)} の当番（${e.duty.join('、')}）の決定を取り消しますか？`)) return;
+    try {
+      await store.update('events', e.id, {duty:[], dutyUid:'', updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now()});
+      log(`${e.date} ${evLabel(e)}：当番（${e.duty.join('、')}）の決定を取り消し`);
+    } catch (err) { saveErr(err); }
+  });
+}
+$('dutyPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
+$('dutyNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
 
 /* ---------- 予定の追加・編集 ---------- */
 function editEvent(ev, date){
@@ -1061,6 +1148,8 @@ function editEvent(ev, date){
       type:$('eType').value, title:$('eTitle').value.trim(), date:$('eDate').value,
       place:$('ePlace').value.trim(), start:off ? '' : $('eStart').value, end:off ? '' : $('eEnd').value,
       duty:[...new Set(dutyList)], note:$('eNote').value.trim(),
+      // 当番希望から決めた当番を予定編集で変えたら、決定扱いを外す
+      dutyUid: ev?.dutyUid && JSON.stringify([...new Set(dutyList)]) === JSON.stringify(ev.duty || []) ? ev.dutyUid : '',
       typeName: $('eType').value === 'custom' ? $('eTypeName').value.trim() : '',
       takeAtt: $('eType').value === 'custom' && $('eTakeAtt').checked,
       updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now(),
