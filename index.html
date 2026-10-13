@@ -143,6 +143,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 .star{color:#d97706}
 .evitem.past{opacity:.6}
 #dutyGrid .ev .duty{display:block}  /* 当番希望日ではスマホでも当番を表示 */
+.ev .wish{color:var(--ok);font-weight:600}
 @media (max-width:640px){
   main{padding:8px}
   .day{min-height:72px;padding:2px}
@@ -1006,7 +1007,8 @@ const dutyShown = e => {
   const ws = isDutyEv(e) ? dutyWishers(e) : [];
   return ws.length === 1 ? [ws[0].name] : [];
 };
-const canWish = () => !isMaster() && roleLabel(me()) === '保護者';
+// 当番を希望できるのはマスター以外（保護者・指導者）
+const canWish = () => !isMaster() && !!me();
 const saveErr = err => alert('保存できませんでした：' + (err?.code === 'permission-denied' ? '権限がありません（Firestoreのルールの更新が必要です）' : (err?.message || err)));
 // 「当番希望日」タブの表示オン／オフ（マスターのアカウント情報に保存。未設定はオフ）
 const dutyTabOn = () => S.users.some(u => (u.email === MASTER_EMAIL || u.role === 'master') && u.dutyTabOn === true);
@@ -1091,7 +1093,7 @@ function renderDuty(){
         <b>${esc(evLabel(e))}</b>
         ${evTime(e)}
         <div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人（未決定）` : '<span class="meta">希望者なし</span>'}</div>
-        ${pick && !isOver(e) && e.dutyWish?.[uid] ? '<div class="cnt">🙋希望済み</div>' : ''}
+        ${pick && !isOver(e) && e.dutyWish?.[uid] ? '<div class="wish">🙋希望済み</div>' : ''}
       </div>`;
     }).join('');
     html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${can?'pastable':''} ${can&&S.dutyPick.has(key)?'picked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
@@ -1160,7 +1162,7 @@ function editEvent(ev, date){
   const cnt = {};
   S.events.forEach(x => { const p = (x.place || '').trim(); if (p) cnt[p] = (cnt[p] || 0) + 1; });
   const places = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || a.localeCompare(b, 'ja'));
-  const parents = S.users.filter(u => roleLabel(u) === '保護者').map(u => u.name);
+  const parents = S.users.filter(u => roleLabel(u) !== 'マスター').map(u => u.name);
   const duty = e.duty || [];
   const extra = duty.filter(n => !parents.includes(n));
   $('modalBody').innerHTML = `
@@ -1195,8 +1197,8 @@ function editEvent(ev, date){
       </div>
       </div>
     </div>
-    <label>当番に入る保護者</label>
-    <div class="chips">${parents.length ? parents.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('') : '<span class="meta">保護者アカウントがまだありません</span>'}</div>
+    <label>当番に入る保護者・指導者</label>
+    <div class="chips">${parents.length ? parents.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('') : '<span class="meta">保護者・指導者のアカウントがまだありません</span>'}</div>
     <input id="eDutyExtra" style="margin-top:6px" placeholder="上記以外の名前（「、」区切り）" value="${esc(extra.join('、'))}">
     <label>メモ（集合時間・持ち物など）</label><textarea id="eNote" rows="3">${esc(e.note)}</textarea>
     <label>添付ファイル（PDF・画像など、1つ5MBまで。メンバー全員が見られます）</label>
