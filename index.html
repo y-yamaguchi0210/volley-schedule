@@ -131,6 +131,9 @@ h4{margin:14px 0 2px;font-size:14px}
 .day.ax,.day.ax:hover{background:#fee2e2}
 .day.am,.day.am:hover{background:#fff5d1}
 .attv{font-size:12px;font-weight:700;margin-top:3px}
+.kidsw{display:flex;flex-wrap:wrap;gap:6px}
+.kidsw button{position:relative;padding:8px 14px;border-radius:999px}
+.kidsw button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 .attv.o{color:var(--ok)}.attv.x{color:var(--ng)}.attv.m{color:var(--maybe)}.attv.u{color:var(--muted);font-weight:400}
 /* カレンダーの子供の参加・不参加の人数（スマホでも表示） */
 .ev .kc{color:var(--muted)}
@@ -276,7 +279,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
         <h2 id="attMonth"></h2>
         <button id="attNext">▶</button>
       </div>
-      <div class="addrow" style="align-items:center;margin:0 0 10px"><span class="meta" style="flex:none">出欠を入力する子供</span><select id="attKid" style="max-width:260px"></select></div>
+      <div id="attKidBox" style="margin:0 0 10px"></div>
       <div id="attBar" class="clipbar"></div>
       <div class="legend">
         <span style="--c:#86efac">参加</span>
@@ -1125,9 +1128,25 @@ function renderAtt(){
   if (!kid) return;
   if (S.attPick && S.attPick.kid !== kid) S.attPick = null;
   $('attMonth').textContent = `${y}年 ${m+1}月`;
-  $('attKid').innerHTML = ks.map(k => `<option value="${k.id}" ${k.id === kid ? 'selected' : ''}>${esc(k.name)}${gradeOf(k) ? `（${esc(gradeOf(k))}）` : ''}</option>`).join('');
+  // 子供の切り替え：保護者はボタン（兄弟姉妹を1人ずつ）、マスターは全員から選択
+  const kname = k => `${esc(k.name)}${gradeOf(k) ? `（${esc(gradeOf(k))}）` : ''}`;
+  const todo = k => S.events.filter(e => needsAtt(e) && !isOver(e) && !e.attendance?.[k.id]).length;
+  const sibs = isMaster() ? [] : families().filter(f => f.kids.some(k => ks.includes(k))).flatMap(f => f.kids).filter(k => !ks.includes(k));
+  $('attKidBox').innerHTML = isMaster()
+    ? `<span class="meta">出欠を入力する子供</span> <select id="attKid" style="max-width:260px">${ks.map(k => `<option value="${k.id}" ${k.id === kid ? 'selected' : ''}>${kname(k)}</option>`).join('')}</select>`
+    : `${ks.length > 1 ? '<div class="meta" style="margin-bottom:4px">お子さんを切り替えて、1人ずつ回答してください</div>' : ''}
+      <div class="kidsw">${ks.map(k => `<button data-attkid="${k.id}" class="${k.id === kid ? 'on' : ''}">${kname(k)}${todo(k) ? ` <span class="badge">${todo(k)}</span>` : ''}</button>`).join('')}</div>
+      ${sibs.length ? `<div class="meta" style="margin-top:6px">兄弟姉妹の ${esc(sibs.map(k => k.name).join('・'))} も入力するには、<a href="#" id="attGoSettings">アカウント設定</a>で選択してください。</div>` : ''}`;
+  const pickKid = id => {
+    if (id === S.attKid) return;
+    if (!leaveAttOk()) { render(); return; }
+    S.attKid = id; S.attPick = null; render();
+  };
+  if ($('attKid')) $('attKid').onchange = () => pickKid($('attKid').value);
+  $('attKidBox').querySelectorAll('[data-attkid]').forEach(b => b.onclick = () => pickKid(b.dataset.attkid));
+  if ($('attGoSettings')) $('attGoSettings').onclick = ev => { ev.preventDefault(); if (leaveAttOk()) { S.attPick = null; S.tab = 'settings'; S.settingsDirty = false; render(); } };
   const map = S.attPick?.map || {}, n = new Set(attChanges().map(c => c.e.date)).size;
-  $('attBar').innerHTML = `<span>📝 日付をタップ：参加 → 不参加 → 未回答（月をまたいでもOK）→「決定」で確定${n ? `<br><b>未確定の変更：${n}日</b>` : ''}</span>
+  $('attBar').innerHTML = `<span><b>📝 ${esc(S.members.find(x => x.id === kid)?.name || '')} の出欠</b><br>日付をタップ：参加 → 不参加 → 未回答（月をまたいでもOK）→「決定」で確定${n ? `<br><b>未確定の変更：${n}日</b>` : ''}</span>
     <button class="primary" id="attSave" ${n ? '' : 'disabled'}>決定</button>${n ? '<button id="attReset">変更を元に戻す</button>' : ''}`;
   $('attSave').onclick = saveAtt;
   if ($('attReset')) $('attReset').onclick = () => { S.attPick = null; render(); };
@@ -1150,10 +1169,6 @@ function renderAtt(){
 }
 $('attPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('attNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
-$('attKid').onchange = () => {
-  if (!leaveAttOk()) { $('attKid').value = S.attKid; return; }
-  S.attKid = $('attKid').value; S.attPick = null; render();
-};
 
 /* ---------- 当番希望日 ---------- */
 // 当番希望をとる予定（練習・体験会）
