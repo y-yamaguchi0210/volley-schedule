@@ -41,10 +41,11 @@ input,select,textarea{border:1px solid var(--line);border-radius:8px;padding:8px
 label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
 .hidden{display:none!important}
 header{background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
-header h1{font-size:18px;margin:0;flex:1}
+header h1{font-size:18px;margin:0;flex:1;display:flex;align-items:center;gap:8px}
+header h1 .logo{width:36px;height:36px;border-radius:50%;flex:none}
 header .who{font-size:13px;color:var(--muted)}
-nav.tabs{display:flex;gap:4px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line)}
-nav.tabs button{border:none;background:none;padding:8px 12px;border-radius:8px;color:var(--muted)}
+nav.tabs{display:flex;gap:4px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--line);overflow-x:auto}
+nav.tabs button{border:none;background:none;padding:8px 12px;border-radius:8px;color:var(--muted);white-space:nowrap;flex:none}
 nav.tabs button.on{background:#e8efff;color:var(--accent);font-weight:600}
 nav.tabs button.alert{background:#fde7e7;color:var(--ng);font-weight:600}  /* 当番希望日が未入力 */
 button.danger.on{background:var(--ng);border-color:var(--ng);color:#fff}
@@ -160,13 +161,16 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   .ev .tm{display:block;font-size:9px;line-height:1.25;color:var(--muted)}
   .ev .te{display:inline-block}
   .row,.cols{grid-template-columns:1fr}
+  .addrow{flex-wrap:wrap}
+  .addrow input{flex:1 1 100%}
+  .addrow select{flex:1 1 0;max-width:none!important}
 }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>🏐WINGS月間予定表</h1>
+  <h1><img src="logo.png" class="logo" alt="">WINGS月間予定表</h1>
   <span class="who" id="who"></span>
   <button id="bellBtn" class="bell hidden" title="お知らせ">🔔<span id="bellCount" class="badge hidden"></span></button>
   <button id="logoutBtn" class="hidden">ログアウト</button>
