@@ -163,7 +163,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 <nav class="tabs hidden" id="tabs">
   <button data-tab="cal" class="on">カレンダー</button>
   <button data-tab="members">メンバー</button>
-  <button data-tab="duty">当番希望日</button>
+  <button data-tab="duty" id="dutyTabBtn" class="hidden">当番希望日</button>
   <button data-tab="log">更新履歴</button>
   <button data-tab="settings">アカウント設定</button>
 </nav>
@@ -242,7 +242,13 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- 当番希望日 -->
   <section id="view-duty" class="hidden">
-    <div class="banner">練習の日付をタップし、当番に入れる場合は「🙋 当番に入れる」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。</div>
+    <div class="card masterOnly" style="margin-bottom:10px">
+      <label style="margin:0;color:var(--text);font-size:15px"><input type="checkbox" id="dutyOn" style="width:auto"> 「当番希望日」を保護者・指導者に表示する</label>
+      <div class="meta" id="dutyOnMsg"></div>
+      <div class="meta">日付をタップすると、その日の希望者から当番を決定できます。</div>
+    </div>
+    <div class="banner notMaster">当番に入れる練習の日をタップして選び（複数可）、「決定」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。</div>
+    <div id="dutyBar" class="clipbar hidden"></div>
     <div class="calbar">
       <button id="dutyPrev">◀</button>
       <h2 id="dutyMonth"></h2>
@@ -637,6 +643,7 @@ store.onAuth(a => {
     S.unsubs.forEach(u => typeof u === 'function' && u());
     S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
     S.users = S.members = S.events = S.logs = [];
+    S.dutyPick = null;
   }
   if (kickIfDeleted()) return;
   ensureMasterProfile();
@@ -668,6 +675,10 @@ function render(){
   $('who').textContent = inApp ? `${myName()} さん（${isMaster() ? 'マスター' : roleLabel(me())}）でログイン中` : '';
   document.body.classList.toggle('is-master', isMaster());
   if (!isMaster()) S.editMember = null;
+  // 当番希望日タブはマスターがオンにしたときだけ表示（マスターには常に表示）
+  const dutyVis = inApp && (isMaster() || dutyTabOn());
+  $('dutyTabBtn').classList.toggle('hidden', !dutyVis);
+  if (!dutyVis && S.tab === 'duty') { S.tab = 'cal'; S.dutyPick = null; }
   for (const t of ['cal', 'members', 'duty', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('bellBtn').classList.toggle('hidden', !inApp);
@@ -681,7 +692,11 @@ function render(){
   if (S.openDate && !$('modal').classList.contains('hidden') && !S.editing) (S.dutyOpen ? renderDutyDay : renderDay)(S.openDate);
   if (S.noticeOpen) renderNotices();
 }
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; S.settingsDirty = false; S.editMember = null; render(); });
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  if (S.tab === 'duty' && b.dataset.tab !== 'duty' && !leaveDutyOk()) return;
+  if (b.dataset.tab !== 'duty') S.dutyPick = null;
+  S.tab = b.dataset.tab; S.settingsDirty = false; S.editMember = null; render();
+});
 
 function countAtt(ev, list){
   const a = ev.attendance || {};
@@ -989,31 +1004,98 @@ const dutyShown = e => {
 };
 const canWish = () => !isMaster() && roleLabel(me()) === '保護者';
 const saveErr = err => alert('保存できませんでした：' + (err?.code === 'permission-denied' ? '権限がありません（Firestoreのルールの更新が必要です）' : (err?.message || err)));
-// カレンダーと同じ月表示（日付をタップするとその日の当番希望を入力）
+// 「当番希望日」タブの表示オン／オフ（マスターのアカウント情報に保存。未設定はオフ）
+const dutyTabOn = () => S.users.some(u => (u.email === MASTER_EMAIL || u.role === 'master') && u.dutyTabOn === true);
+$('dutyOn').onchange = async () => {
+  if (!isMaster()) return;
+  const on = $('dutyOn').checked;
+  try {
+    await store.update('users', S.auth.uid, {dutyTabOn:on});
+    log(`「当番希望日」を${on ? '表示（オン）' : '非表示（オフ）'}に変更`);
+  } catch (err) { saveErr(err); render(); }
+};
+// 保護者の当番希望：日付をタップして複数選択 →「決定」でまとめて保存
+const fixedDuty = (e, uid) => e.dutyUid === uid && (e.duty || []).length;
+const myWishDates = () => new Set(S.events.filter(e => isDutyEv(e) && !isOver(e) && e.dutyWish?.[S.auth.uid]).map(e => e.date));
+const wishable = key => eventsOn(key).some(e => isDutyEv(e) && !isOver(e));
+function dutyChanges(){
+  const uid = S.auth.uid, out = [];
+  if (!S.dutyPick) return out;
+  for (const e of S.events) {
+    if (!isDutyEv(e) || isOver(e)) continue;
+    const want = S.dutyPick.has(e.date), has = !!e.dutyWish?.[uid];
+    if (want !== has && (want || !fixedDuty(e, uid))) out.push({e, want});
+  }
+  return out;
+}
+function toggleDutyPick(key){
+  if (!wishable(key)) return;
+  if (S.dutyPick.has(key)) {
+    if (eventsOn(key).some(e => fixedDuty(e, S.auth.uid))) { alert('この日は当番に決定しています。変更する場合はマスターに連絡してください。'); return; }
+    S.dutyPick.delete(key);
+  } else S.dutyPick.add(key);
+  render();
+}
+function renderDutyBar(){
+  $('dutyBar').classList.toggle('hidden', !canWish());
+  if (!canWish()) return;
+  const ch = dutyChanges(), days = list => new Set(list.map(c => c.e.date)).size;
+  const add = days(ch.filter(c => c.want)), del = days(ch.filter(c => !c.want));
+  $('dutyBar').innerHTML = `<span>🙋 当番に入れる日をタップして選択（複数可・月をまたいでもOK）→「決定」で確定します。<br>
+      選択中 ${S.dutyPick.size}日${ch.length ? `　<b>未確定の変更：${add ? `追加${add}日` : ''}${add && del ? '・' : ''}${del ? `取り消し${del}日` : ''}</b>` : ''}</span>
+    <button class="primary" id="dutySave" ${ch.length ? '' : 'disabled'}>決定</button>
+    ${ch.length ? '<button id="dutyReset">変更を元に戻す</button>' : ''}`;
+  $('dutySave').onclick = saveDutyPick;
+  if ($('dutyReset')) $('dutyReset').onclick = () => { S.dutyPick = null; render(); };
+}
+async function saveDutyPick(){
+  const ch = dutyChanges(), uid = S.auth.uid;
+  if (!ch.length) return;
+  $('dutySave').disabled = true;
+  const fmt = list => [...new Set(list.map(c => c.e.date.slice(5).replace('-', '/')))].join('・');
+  try {
+    for (const {e, want} of ch) await store.update('events', e.id, {['dutyWish.' + uid]: want ? {at:Date.now()} : null});
+    const add = ch.filter(c => c.want), del = ch.filter(c => !c.want);
+    log(`当番希望を更新${add.length ? `（希望：${fmt(add)}）` : ''}${del.length ? `（取り消し：${fmt(del)}）` : ''}`);
+    S.dutyPick = null;
+    alert('当番希望を確定しました。');
+  } catch (err) { saveErr(err); }
+  render();
+}
+// 未確定の当番希望があれば、破棄してよいか確認
+const leaveDutyOk = () => !dutyChanges().length || confirm('未確定の当番希望があります。破棄してよろしいですか？');
+// カレンダーと同じ月表示
 function renderDuty(){
-  const y = S.month.getFullYear(), m = S.month.getMonth(), uid = S.auth.uid;
+  const y = S.month.getFullYear(), m = S.month.getMonth(), uid = S.auth.uid, pick = canWish();
   $('dutyMonth').textContent = `${y}年 ${m+1}月`;
+  if (isMaster()) {
+    $('dutyOn').checked = dutyTabOn();
+    $('dutyOnMsg').textContent = dutyTabOn() ? '保護者・指導者に表示しています。' : '現在は非表示です（マスターにだけ見えています）。';
+  }
+  if (pick && !S.dutyPick) S.dutyPick = myWishDates();
+  renderDutyBar();
   const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), today = ymd(new Date());
   let html = ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
   const weeks = Math.ceil((first.getDay() + new Date(y, m+1, 0).getDate()) / 7);
   for (let i = 0; i < weeks * 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(isDutyEv);
-    const done = evs.length && evs.every(isOver);
-    const wished = evs.some(e => !isOver(e) && e.dutyWish?.[uid]);   // 自分が希望している日は黄色
+    const done = evs.length && evs.every(isOver), can = pick && wishable(key);
     const items = evs.map(e => {
-      const ws = dutyWishers(e), shown = dutyShown(e), mine = e.dutyUid === uid && (e.duty || []).length;
+      const ws = dutyWishers(e), shown = dutyShown(e), mine = fixedDuty(e, uid);
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
         <span class="tm">${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>
         <div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人（未決定）` : '<span class="meta">希望者なし</span>'}</div>
+        ${pick && !isOver(e) && e.dutyWish?.[uid] ? '<div class="cnt">🙋希望済み</div>' : ''}
       </div>`;
     }).join('');
-    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${wished?'maybe':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${can?'pastable':''} ${can&&S.dutyPick.has(key)?'picked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
       <span class="num">${d.getDate()}</span>${items}</div>`;
   }
   $('dutyGrid').innerHTML = html;
-  $('dutyGrid').querySelectorAll('.day').forEach(el => el.onclick = () => openDutyDay(el.dataset.date));
+  // 保護者はタップで選択、マスター・指導者はタップでその日の当番を表示
+  $('dutyGrid').querySelectorAll('.day').forEach(el => el.onclick = () => pick ? toggleDutyPick(el.dataset.date) : openDutyDay(el.dataset.date));
 }
 function openDutyDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = true; renderDutyDay(date); $('modal').classList.remove('hidden'); }
 function renderDutyDay(date){
@@ -1026,7 +1108,6 @@ function renderDutyDay(date){
 }
 function dutyItem(e){
   const uid = S.auth.uid, over = isOver(e), ws = dutyWishers(e), shown = dutyShown(e);
-  const on = !!e.dutyWish?.[uid], fixed = e.dutyUid === uid && (e.duty || []).length;
   const status = shown.length ? `<b>当番：${esc(shown.join('、'))}</b>${(e.duty || []).length ? '' : ' <span class="meta">（希望者1人のため）</span>'}`
     : ws.length ? `<b style="color:var(--maybe)">希望${ws.length}人・マスターの決定待ち</b>` : '<span class="meta">当番の希望者はまだいません</span>';
   return `<div class="evitem ${over ? 'past' : ''}" style="--c:${typeOf(e).c}">
@@ -1038,22 +1119,10 @@ function dutyItem(e){
     ${e.dutyUid && (e.duty || []).length && !ws.some(w => w.uid === e.dutyUid) ? '<div class="meta">※当番に決定した方の希望が取り消されています</div>' : ''}
     ${ws.length ? `<ul class="list">${ws.map(w => `<li><span>${w.uid === uid ? '<span class="star">★</span>' : ''}${esc(w.name)} <span class="meta">希望 ${fmtAt(w.at)}</span></span>
       ${isMaster() && !over ? (e.dutyUid === w.uid && (e.duty || []).length ? '<b style="color:var(--ok)">当番に決定</b>' : `<button class="primary" data-dpick="${e.id}|${w.uid}">当番に決定</button>`) : ''}</li>`).join('')}</ul>` : ''}
-    ${over ? '<div class="meta">終了した練習です</div>' : canWish() ? `<div class="actions">${fixed ? '<span class="meta">あなたが当番に決定しています（変更はマスターに連絡してください）</span>'
-      : `<button class="${on ? '' : 'primary'}" data-dwish="${e.id}">${on ? '希望を取り消す' : '🙋 当番に入れる'}</button>`}</div>` : ''}
+    ${over ? '<div class="meta">終了した練習です</div>' : ''}
   </div>`;
 }
 function bindDuty(root){
-  const uid = S.auth.uid;
-  root.querySelectorAll('[data-dwish]').forEach(b => b.onclick = async () => {
-    const e = S.events.find(x => x.id === b.dataset.dwish);
-    if (!e || !canWish()) return;
-    const on = !e.dutyWish?.[uid];
-    b.disabled = true;
-    try {
-      await store.update('events', e.id, {['dutyWish.' + uid]: on ? {at:Date.now()} : null});
-      log(`${e.date} ${evLabel(e)}：当番を${on ? '希望' : '希望取り消し'}`);
-    } catch (err) { b.disabled = false; saveErr(err); }
-  });
   root.querySelectorAll('[data-dpick]').forEach(b => b.onclick = async () => {
     if (!isMaster()) return;
     const [eid, wuid] = b.dataset.dpick.split('|'), e = S.events.find(x => x.id === eid), w = e && dutyWishers(e).find(x => x.uid === wuid);
