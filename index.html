@@ -181,7 +181,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   <button data-tab="cal" class="on">カレンダー</button>
   <button data-tab="members">メンバー</button>
   <button data-tab="duty" id="dutyTabBtn" class="hidden">当番希望日</button>
-  <button data-tab="log">更新履歴</button>
+  <button data-tab="log" class="masterOnly">更新履歴</button>
   <button data-tab="settings">アカウント設定</button>
 </nav>
 
@@ -646,7 +646,8 @@ $('logoutBtn').onclick = () => { if (confirm('ログアウトしますか？')) 
 store.onAuth(a => {
   S.auth = a;
   if (a && !S.unsubs) {
-    S.unsubs = ['users', 'members', 'events', 'logs'].map(c => store.subscribe(c, rows => {
+    // 更新履歴（logs）はマスターだけが読み込む（Firestoreのルールでもマスター以外は読めない）
+    S.unsubs = ['users', 'members', 'events', ...(isMaster() ? ['logs'] : [])].map(c => store.subscribe(c, rows => {
       if (c === 'users') {
         // マスターが削除したアカウントは deleted フラグ付きで残る → 一覧から除外
         S.usersLoaded = true;
@@ -701,6 +702,7 @@ function render(){
   $('dutyTabBtn').classList.toggle('hidden', !dutyVis);
   $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
   if (!dutyVis && S.tab === 'duty') { S.tab = 'cal'; S.dutyPick = null; }
+  if (!isMaster() && S.tab === 'log') S.tab = 'cal';   // 更新履歴はマスターのみ
   for (const t of ['cal', 'members', 'duty', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('bellBtn').classList.toggle('hidden', !inApp);
