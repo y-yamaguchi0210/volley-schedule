@@ -147,7 +147,9 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   main{padding:8px}
   .day{min-height:72px;padding:2px}
   .ev{font-size:10px;padding:1px 2px;border-left-width:3px}
-  .ev .cnt,.ev .duty,.ev .tm{display:none}
+  .ev .cnt,.ev .duty{display:none}
+  .ev .tm{display:block;font-size:9px;line-height:1.25;color:var(--muted)}
+  .ev .te{display:inline-block}
   .row,.cols{grid-template-columns:1fr}
 }
 </style>
@@ -702,6 +704,8 @@ function countAtt(ev, list){
   const a = ev.attendance || {};
   return `${list.filter(m => a[m.id]?.v === 'o').length}/${list.length}`;
 }
+// カレンダーのマスに出す時間（スマホでは「〜終了」を折り返して2行で表示）
+const evTime = e => e.start || e.end ? `<span class="tm">${esc(e.start || '')}${e.end ? `<span class="te">〜${esc(e.end)}</span>` : ''}</span>` : '';
 function eventsOn(date){ return S.events.filter(e => e.date === date).sort((a, b) => (a.start || '').localeCompare(b.start || '')); }
 
 function renderCal(){
@@ -740,7 +744,7 @@ function renderCal(){
       const t = typeOf(e);
       return `<div class="ev" style="--c:${t.c}">
         <b>${esc(e.title || t.label)}</b>${(e.attachments || []).length ? '📎' : ''}
-        ${e.type !== 'off' ? `<span class="tm">${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>` : ''}
+        ${e.type !== 'off' ? evTime(e) : ''}
         ${needsAtt(e) ? `<div class="cnt">子${countAtt(e, K)} 指${countAtt(e, C)}${hasEscort(e) ? ` 車${Object.values(e.escort || {}).filter(x => x.car === 'yes').length}台` : ''}</div>` : ''}
         ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>`
           : isDutyEv(e) && dutyWishers(e).length > 1 ? `<div class="duty">当番:希望${dutyWishers(e).length}人</div>` : ''}
@@ -1085,7 +1089,7 @@ function renderDuty(){
       const ws = dutyWishers(e), shown = dutyShown(e), mine = fixedDuty(e, uid);
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
-        <span class="tm">${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>
+        ${evTime(e)}
         <div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人（未決定）` : '<span class="meta">希望者なし</span>'}</div>
         ${pick && !isOver(e) && e.dutyWish?.[uid] ? '<div class="cnt">🙋希望済み</div>' : ''}
       </div>`;
