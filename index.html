@@ -75,7 +75,20 @@ main{max-width:1100px;margin:0 auto;padding:16px}
 .ev{border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 10%,#fff);border-radius:4px;padding:2px 4px;margin-top:3px;font-size:11px;line-height:1.35}
 .ev b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev .cnt{color:var(--muted)}
-.ev .duty{color:#7c3aed}
+.ev .duty{color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 縦一列レイアウト */
+.grid.vlist{display:block}
+.grid.vlist .day{display:flex;gap:10px;align-items:flex-start;min-height:0;padding:8px 10px;border-top:1px solid var(--line)}
+.grid.vlist .day:first-child{border-top:none}
+.grid.vlist .vd{flex:0 0 46px;display:flex;align-items:center;gap:3px;font-size:12px;color:var(--muted)}
+.grid.vlist .day.sun .vd{color:var(--ng)} .grid.vlist .day.sat .vd{color:var(--accent)}
+.grid.vlist .vevs{flex:1;min-width:0}
+.grid.vlist .vevs:empty::before{content:"予定なし";font-size:12px;color:#b8bcc4}
+.grid.vlist .ev{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-size:13px;padding:4px 8px;margin:0 0 4px}
+.grid.vlist .ev:last-child{margin-bottom:0}
+.grid.vlist .ev b{display:inline}
+.grid.vlist .ev .tm,.grid.vlist .ev .te{display:inline;font-size:12px;color:var(--muted)}
+.grid.vlist .ev .kc span{margin-right:8px}
 /* modal */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto;z-index:20}
 .modal .card{width:100%;max-width:720px}
@@ -170,7 +183,6 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   main{padding:8px}
   .day{min-height:72px;padding:2px}
   .ev{font-size:10px;padding:1px 2px;border-left-width:3px}
-  .ev .cnt,.ev .duty{display:none}
   .ev .tm{display:block;font-size:9px;line-height:1.25;color:var(--muted)}
   .ev .te{display:inline-block}
   .row,.cols{grid-template-columns:1fr}
@@ -234,6 +246,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <h2 id="monthTitle"></h2>
       <button id="nextM">▶</button>
       <button id="bulkDelBtn" class="danger masterOnly">🗑 一括削除</button>
+      <button id="layoutBtn" title="レイアウト切り替え"></button>
     </div>
     <div class="legend">
       <span style="--c:var(--practice)">練習</span>
@@ -244,7 +257,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <span style="--c:var(--custom)">その他（学校行事など）</span>
       <span class="notMaster" style="--c:#f8c9c9">出欠が未回答の日</span>
       <span class="notMaster" style="--c:#fbe7a1">△で回答した日</span>
-      <span>参加・不参加＝子供の人数 / 指＝指導者の出席数</span>
+      <span id="legendCnt">参加・不参加＝子供の人数</span>
     </div>
     <div class="grid" id="grid"></div>
   </section>
@@ -800,26 +813,32 @@ function renderCal(){
     if ($('pasteReset')) $('pasteReset').onclick = () => { S.pasteDates = new Set(); render(); };
     $('clipClear').onclick = () => { S.clip = null; S.pasteDates = new Set(); render(); };
   }
-  let html = ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
+  // レイアウト：月表示（種類・時間・当番）／縦一列（種類・時間・参加・不参加・当番）
+  const vlist = S.calLayout === 'list';
+  $('layoutBtn').textContent = vlist ? '📅 月表示' : '☰ 縦一列';
+  $('legendCnt').classList.toggle('hidden', !vlist);
+  $('grid').classList.toggle('vlist', vlist);
+  let html = vlist ? '' : ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
   const weeks = Math.ceil((first.getDay() + new Date(y, m+1, 0).getDate()) / 7);
   for (let i = 0; i < weeks * 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
+    if (vlist && d.getMonth() !== m) continue;
     const key = ymd(d), dow = d.getDay(), dayEvs = eventsOn(key);
     const done = dayEvs.length && dayEvs.every(isOver);
     const mine = done ? '' : myAttState(dayEvs);
     const evs = dayEvs.map(e => {
       const t = typeOf(e);
       return `<div class="ev" style="--c:${t.c}">
-        <b>${esc(e.title || t.label)}</b>${(e.attachments || []).length ? '📎' : ''}
+        <b>${esc(e.title || t.label)}</b>
         ${e.type !== 'off' ? evTime(e) : ''}
-        ${needsAtt(e) ? `<div class="kc"><span>参加${attN(e, 'o')}</span><span>不参加${attN(e, 'x')}</span></div>
-          <div class="cnt">指${countAtt(e, C)}${hasEscort(e) ? ` 車${Object.values(e.escort || {}).filter(x => x.car === 'yes').length}台` : ''}</div>` : ''}
+        ${vlist && needsAtt(e) ? `<div class="kc"><span>参加${attN(e, 'o')}</span><span>不参加${attN(e, 'x')}</span></div>` : ''}
         ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>`
           : isDutyEv(e) && dutyWishers(e).length > 1 ? `<div class="duty">当番:希望${dutyWishers(e).length}人</div>` : ''}
       </div>`;
     }).join('');
-    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${mine} ${S.clip?'pastable':''} ${S.clip&&S.pasteDates.has(key)?'picked':''} ${S.delMode?'delable':''} ${S.delMode&&S.delDates.has(key)?'delpicked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
-      <span class="num">${d.getDate()}</span>${evs}</div>`;
+    const num = vlist ? `<div class="vd"><span class="num">${d.getDate()}</span>(${'日月火水木金土'[dow]})</div><div class="vevs">${evs}</div>`
+      : `<span class="num">${d.getDate()}</span>${evs}`;
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${mine} ${S.clip?'pastable':''} ${S.clip&&S.pasteDates.has(key)?'picked':''} ${S.delMode?'delable':''} ${S.delMode&&S.delDates.has(key)?'delpicked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">${num}</div>`;
   }
   $('grid').innerHTML = html;
   $('grid').querySelectorAll('.day').forEach(el => el.onclick = () => {
@@ -845,6 +864,13 @@ async function pasteAll(){
 }
 $('prevM').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('nextM').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
+// レイアウトはこの端末に記憶（初期は月表示）
+try { S.calLayout = localStorage.getItem('calLayout') || 'grid'; } catch { S.calLayout = 'grid'; }
+$('layoutBtn').onclick = () => {
+  S.calLayout = S.calLayout === 'list' ? 'grid' : 'list';
+  try { localStorage.setItem('calLayout', S.calLayout); } catch {}
+  render();
+};
 
 /* ---------- 予定の一括削除（マスターのみ） ---------- */
 // カレンダー上で日をタップして選択 → まとめて削除
