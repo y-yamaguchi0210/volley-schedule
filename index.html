@@ -349,6 +349,10 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
         <div id="sKidBox">
           <label>自分の子供（複数選択できます）</label>
           <div class="chips" id="sKids"></div>
+          <div id="sRelBox">
+            <label>子供との続柄</label>
+            <select id="sRel"><option value="">（選択してください）</option><option value="母">母</option><option value="父">父</option></select>
+          </div>
           <div class="meta">一覧にいない場合は、マスター権限の方に登録を依頼してください。</div>
         </div>
         <div id="sCoachBox">
@@ -1626,7 +1630,7 @@ function renderMembers(){
     const ks = (u.childIds || []).map(nameOf).filter(Boolean);
     const info = roleLabel(u) === 'マスター' ? 'マスター（管理者）' : u.role === 'coach'
       ? '指導者' + (nameOf(u.coachId) ? `（名簿：${esc(nameOf(u.coachId))}）` : '（名簿未設定）')
-      : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の保護者` : '（子供未設定）');
+      : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の${esc(u.relation || '保護者')}` : '（子供未設定）');
     const delBtn = isMaster() && roleLabel(u) !== 'マスター' ? `<button class="danger" data-rmuser="${u.id}">削除</button>` : '';
     const reqs = requests().filter(r => r.u.id === u.id);
     return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}</span></span>${delBtn}
@@ -1704,6 +1708,7 @@ function renderSettings(){
     const owner = coachTakenBy(c.id);
     return `<option value="${c.id}" ${u.coachId===c.id?'selected':''} ${owner?'disabled':''}>${esc(c.name)}${c.position ? `（${esc(c.position)}）` : ''}${owner ? ` … ${esc(owner.name)}さんが選択済み` : ''}</option>`;
   }).join('');
+  $('sRel').value = u.relation || '';
   toggleRoleBoxes();
   $('sMsg').textContent = '';
 }
@@ -1711,7 +1716,11 @@ function toggleRoleBoxes(){
   const coach = $('sRole').value === 'coach';
   $('sKidBox').classList.toggle('hidden', coach);
   $('sCoachBox').classList.toggle('hidden', !coach);
+  toggleRelBox();
 }
+// 子供にチェックが入っているときだけ、母・父の選択を表示
+const toggleRelBox = () => $('sRelBox').classList.toggle('hidden', !document.querySelector('.sKidChk:checked'));
+$('sKids').addEventListener('change', toggleRelBox);
 // その子を選択している自分以外のアカウント（マスター承認で複数になることがある）
 const takenBy = kidId => S.users.filter(u => u.id !== S.auth?.uid && (u.childIds || []).includes(kidId));
 const coachTakenBy = cid => S.users.find(u => u.id !== S.auth?.uid && u.coachId === cid);
@@ -1724,8 +1733,10 @@ $('sSave').onclick = async () => {
   // 他のアカウントが選択済みの子は承認待ちに回す（承認済みの子はそのまま）
   const checked = role === 'parent' ? [...document.querySelectorAll('.sKidChk:checked')].map(c => c.value) : [];
   const owned = id => (u?.childIds || []).includes(id) || !takenBy(id).length;
+  if (!isMaster() && checked.length && !$('sRel').value) { $('sMsg').textContent = '母・父を選択してください'; return; }
   const patch = isMaster() ? {name} : {
     name, role, notify:$('sNotify').checked,
+    relation: checked.length ? $('sRel').value : '',
     childIds: checked.filter(owned),
     pendingChildIds: checked.filter(id => !owned(id)),
     coachId: role === 'coach' ? $('sCoach').value : '',
