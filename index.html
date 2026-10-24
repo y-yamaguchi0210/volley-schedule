@@ -854,6 +854,7 @@ function renderCal(){
         ${vlist && needsAtt(e) ? `<div class="kc"><span>参加${attN(e, 'o')}</span><span>不参加${attN(e, 'x')}</span></div>` : ''}
         ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>`
           : isDutyEv(e) && dutyWishers(e).length > 1 ? `<div class="duty">当番:希望${dutyWishers(e).length}人</div>` : ''}
+        ${vlist && isDutyEv(e) ? `<div class="duty">指導者:${esc(coachAvail(e).map(w => w.name).join('・')) || '未定'}</div>` : ''}
       </div>`;
     }).join('');
     const num = vlist ? `<div class="vd"><span class="num">${d.getDate()}</span>(${'日月火水木金土'[dow]})</div><div class="vevs">${evs}</div>`
