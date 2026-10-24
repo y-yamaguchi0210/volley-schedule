@@ -76,6 +76,7 @@ main{max-width:1100px;margin:0 auto;padding:16px}
 .ev b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ev .cnt{color:var(--muted)}
 .ev .duty{color:#7c3aed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid{touch-action:pan-y}
 /* 縦一列レイアウト */
 .grid.vlist{display:block}
 .grid.vlist .day{display:flex;gap:10px;align-items:flex-start;min-height:0;padding:8px 10px;border-top:1px solid var(--line)}
@@ -1539,6 +1540,17 @@ function bindDuty(root){
 }
 $('dutyPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('dutyNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
+// カレンダー（出欠確認・当番希望日／指導可能日も）は左右スワイプで月を切り替え
+[['grid', 'prevM', 'nextM'], ['attGrid', 'attPrev', 'attNext'], ['dutyGrid', 'dutyPrev', 'dutyNext']].forEach(([g, p, n]) => {
+  let sx = null, sy = 0;
+  $(g).addEventListener('touchstart', ev => { if (ev.touches.length !== 1) { sx = null; return; } sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; }, {passive:true});
+  $(g).addEventListener('touchend', ev => {
+    if (sx === null) return;
+    const dx = ev.changedTouches[0].clientX - sx, dy = ev.changedTouches[0].clientY - sy;
+    sx = null;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) $(dx < 0 ? n : p).click();
+  }, {passive:true});
+});
 $('dutyNG').onclick = toggleDutyNG;
 
 /* ---------- 予定の追加・編集 ---------- */
