@@ -83,6 +83,7 @@ main{max-width:1100px;margin:0 auto;padding:16px}
 .grid.vlist .vd{flex:0 0 46px;display:flex;align-items:center;gap:3px;font-size:12px;color:var(--muted)}
 .grid.vlist .day.sun .vd{color:var(--ng)} .grid.vlist .day.sat .vd{color:var(--accent)}
 .grid.vlist .vevs{flex:1;min-width:0}
+.grid.vlist .hname{font-size:11px;color:var(--ng);margin-bottom:2px}
 .grid.vlist .vevs:empty::before{content:"予定なし";font-size:12px;color:#b8bcc4}
 .grid.vlist .ev{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;font-size:13px;padding:4px 8px;margin:0 0 4px}
 .grid.vlist .ev:last-child{margin-bottom:0}
@@ -540,6 +541,34 @@ const S = { auth:null, users:[], members:[], events:[], logs:[], month:new Date(
 S.month.setDate(1);
 // 予定編集で選べる時間帯（先頭が新規追加時の初期値）
 const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00'], ['16:00', '18:00']];
+// 日本の祝日（振替休日・国民の休日を含む）。年ごとに計算してキャッシュ
+const HOLI = {};
+function holidaysOf(y){
+  if (HOLI[y]) return HOLI[y];
+  const h = {}, k = (m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const nthMon = (m, n) => 1 + (8 - new Date(y, m - 1, 1).getDay()) % 7 + (n - 1) * 7;
+  const eq = (base) => Math.floor(base + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4));
+  [[1,1,'元日'],[2,11,'建国記念の日'],[2,23,'天皇誕生日'],[4,29,'昭和の日'],[5,3,'憲法記念日'],[5,4,'みどりの日'],[5,5,'こどもの日'],
+   [8,11,'山の日'],[11,3,'文化の日'],[11,23,'勤労感謝の日'],
+   [1,nthMon(1,2),'成人の日'],[7,nthMon(7,3),'海の日'],[9,nthMon(9,3),'敬老の日'],[10,nthMon(10,2),'スポーツの日'],
+   [3,eq(20.8431),'春分の日'],[9,eq(23.2488),'秋分の日']].forEach(([m, d, n]) => h[k(m, d)] = n);
+  const base = Object.keys(h).sort();
+  // 国民の休日：祝日に挟まれた平日
+  base.forEach(s => {
+    const d = new Date(s + 'T00:00'); d.setDate(d.getDate() + 1); const mid = ymd(d);
+    d.setDate(d.getDate() + 1);
+    if (!h[mid] && h[ymd(d)] && new Date(mid + 'T00:00').getDay() !== 0) h[mid] = '国民の休日';
+  });
+  // 振替休日：日曜の祝日の後の最初の平日
+  base.forEach(s => {
+    const d = new Date(s + 'T00:00'); if (d.getDay() !== 0) return;
+    do d.setDate(d.getDate() + 1); while (h[ymd(d)]);
+    h[ymd(d)] = '振替休日';
+  });
+  return HOLI[y] = h;
+}
+const holiday = key => holidaysOf(+key.slice(0, 4))[key] || '';
+const dowCls = (key, dow) => dow === 0 || holiday(key) ? 'sun' : dow === 6 ? 'sat' : '';
 const TYPES = {
   practice:  {label:'練習',       c:'var(--practice)'},
   trial:     {label:'練習（体験会）', c:'var(--trial)'},
@@ -857,9 +886,9 @@ function renderCal(){
         ${vlist && isDutyEv(e) ? `<div class="duty">指導者:${esc(coachShown(e).map(w => w.name).join('・')) || '未定'}</div>` : ''}
       </div>`;
     }).join('');
-    const num = vlist ? `<div class="vd"><span class="num">${d.getDate()}</span>(${'日月火水木金土'[dow]})</div><div class="vevs">${evs}</div>`
+    const num = vlist ? `<div class="vd"><span class="num">${d.getDate()}</span>(${'日月火水木金土'[dow]})</div><div class="vevs">${holiday(key) ? `<div class="hname">${holiday(key)}</div>` : ''}${evs}</div>`
       : `<span class="num">${d.getDate()}</span>${evs}`;
-    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${mine} ${S.clip?'pastable':''} ${S.clip&&S.pasteDates.has(key)?'picked':''} ${S.delMode?'delable':''} ${S.delMode&&S.delDates.has(key)?'delpicked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">${num}</div>`;
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${mine} ${S.clip?'pastable':''} ${S.clip&&S.pasteDates.has(key)?'picked':''} ${S.delMode?'delable':''} ${S.delMode&&S.delDates.has(key)?'delpicked':''} ${dowCls(key, dow)}" data-date="${key}">${num}</div>`;
   }
   $('grid').innerHTML = html;
   $('grid').querySelectorAll('.day').forEach(el => el.onclick = () => {
@@ -990,7 +1019,7 @@ function renderDay(date){
   const d = new Date(date + 'T00:00');
   const evs = eventsOn(date);
   $('modalBody').innerHTML = `
-    <h3>${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）</h3>
+    <h3>${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）${holiday(date) ? `<span style="color:var(--ng);font-size:13px;margin-left:6px">${holiday(date)}</span>` : ''}</h3>
     ${evs.length ? '' : '<p class="meta">この日の予定はまだありません。</p>'}
     ${evs.map(e => {
       const t = typeOf(e);
@@ -1213,7 +1242,7 @@ function renderAtt(){
     const v = open.length && key in map ? map[key] : saved, changed = open.length && key in map && map[key] !== saved;
     const items = evs.map(e => `<div class="ev" style="--c:${typeOf(e).c}"><b>${esc(evLabel(e))}</b>${e.type !== 'off' ? evTime(e) : ''}</div>`).join('')
       + (evs.length ? `<div class="attv ${v || 'u'}">${changed ? '✎' : ''}${ATT_LABEL[v] ?? ''}</div>` : '');
-    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${open.length && v ? 'a' + v : ''} ${open.length?'pastable':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${open.length && v ? 'a' + v : ''} ${open.length?'pastable':''} ${dowCls(key, dow)}" data-date="${key}">
       <span class="num">${d.getDate()}</span>${items}</div>`;
   }
   $('attGrid').innerHTML = html;
@@ -1433,7 +1462,7 @@ function renderDuty(){
         ${pick && !isOver(e) && e[t.f]?.[uid] ? `<div class="wish">${t.done}</div>` : ''}
       </div>`;
     }).join('');
-    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${can?'pastable':''} ${can&&S.dutyPick.has(key)?'picked':''} ${dow==0?'sun':dow==6?'sat':''}" data-date="${key}">
+    html += `<div class="day ${d.getMonth()!==m?'other':''} ${key===today?'today':''} ${done?'done':''} ${can?'pastable':''} ${can&&S.dutyPick.has(key)?'picked':''} ${dowCls(key, dow)}" data-date="${key}">
       <span class="num">${d.getDate()}</span>${items}</div>`;
   }
   $('dutyGrid').innerHTML = html;
