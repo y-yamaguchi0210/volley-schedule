@@ -313,9 +313,17 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <div class="card masterOnly" style="margin-bottom:10px">
       <label style="margin:0;color:var(--text);font-size:15px"><input type="checkbox" id="dutyOn" style="width:auto"> 「当番希望日」を保護者・指導者に表示する</label>
       <div class="meta" id="dutyOnMsg"></div>
+      <div id="dutyDlBox" class="hidden">
+        <label>回答の締切日時（過ぎると自動で非表示になります）</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="datetime-local" id="dutyDl" style="width:auto">
+          <button id="dutyDlSave">締切を設定</button>
+          <button id="dutyDlClear">締切なし</button>
+        </div>
+      </div>
       <div class="meta">日付をタップすると、その日の希望者から当番を決定できます。</div>
     </div>
-    <div class="banner notMaster">当番に入れる練習の日をタップして選び（複数可）、「決定」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。</div>
+    <div class="banner notMaster">当番に入れる練習の日をタップして選び（複数可）、「決定」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。<b id="dutyDlNote"></b></div>
     <div id="dutyBar" class="clipbar hidden"></div>
     <div class="calbar">
       <button id="dutyPrev">◀</button>
@@ -754,6 +762,11 @@ function render(){
   document.body.classList.toggle('is-master', isMaster());
   if (!isMaster()) S.editMember = null;
   // 当番希望日タブはマスターがオンにしたときだけ表示（マスターには常に表示）
+  // 締切の時刻ちょうどに表示を切り替えるため、その時刻に再描画を予約
+  if (inApp) dutyAutoOff();
+  clearTimeout(S.dutyTimer);
+  const dlLeft = inApp ? dutyDeadline() - Date.now() : 0;
+  if (dlLeft > 0) S.dutyTimer = setTimeout(render, Math.min(dlLeft + 500, 2 ** 31 - 1));
   const dutyVis = inApp && (isMaster() || dutyTabOn());
   $('dutyTabBtn').classList.toggle('hidden', !dutyVis);
   $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
@@ -1221,15 +1234,51 @@ const dutyShown = e => {
 const canWish = () => !isMaster() && !!me();
 const saveErr = err => alert('保存できませんでした：' + (err?.code === 'permission-denied' ? '権限がありません（Firestoreのルールの更新が必要です）' : (err?.message || err)));
 // 「当番希望日」タブの表示オン／オフ（マスターのアカウント情報に保存。未設定はオフ）
-const dutyTabOn = () => S.users.some(u => (u.email === MASTER_EMAIL || u.role === 'master') && u.dutyTabOn === true);
+// 回答の締切日時（dutyDeadline）を過ぎたら、オンのままでも非表示として扱う
+const dutyMasters = () => S.users.filter(u => (u.email === MASTER_EMAIL || u.role === 'master') && u.dutyTabOn === true);
+const dlPassed = u => !!u.dutyDeadline && Date.now() >= u.dutyDeadline;
+const dutyTabOn = () => dutyMasters().some(u => !dlPassed(u));
+const dutyDeadline = () => dutyMasters().find(u => !dlPassed(u))?.dutyDeadline || 0;
+const fmtDl = t => { const d = new Date(t); return `${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 $('dutyOn').onchange = async () => {
   if (!isMaster()) return;
   const on = $('dutyOn').checked;
+  // 締切を過ぎた状態で再びオンにしたときは、古い締切を解除
+  const patch = on && dlPassed(me() || {}) ? {dutyTabOn:on, dutyDeadline:0} : {dutyTabOn:on};
   try {
-    await store.update('users', S.auth.uid, {dutyTabOn:on});
+    await store.update('users', S.auth.uid, patch);
     log(`「当番希望日」を${on ? '表示（オン）' : '非表示（オフ）'}に変更`);
   } catch (err) { saveErr(err); render(); }
 };
+$('dutyDl').oninput = () => S.dutyDlDirty = true;
+$('dutyDlSave').onclick = async () => {
+  const t = $('dutyDl').value ? new Date($('dutyDl').value).getTime() : 0;
+  if (!t) { alert('締切日時を入力してください'); return; }
+  if (t <= Date.now()) { alert('締切日時は現在より後の日時にしてください'); return; }
+  try {
+    await store.update('users', S.auth.uid, {dutyDeadline:t});
+    S.dutyDlDirty = false;
+    log(`「当番希望日」の回答締切を ${fmtDl(t)} に設定`);
+  } catch (err) { saveErr(err); }
+  render();
+};
+$('dutyDlClear').onclick = async () => {
+  try {
+    await store.update('users', S.auth.uid, {dutyDeadline:0});
+    S.dutyDlDirty = false;
+    log('「当番希望日」の回答締切を解除');
+  } catch (err) { saveErr(err); }
+  render();
+};
+// 締切を過ぎたら、マスターの画面が開いたときに表示設定をオフに戻す
+function dutyAutoOff(){
+  const u = me();
+  if (!isMaster() || !u?.dutyTabOn || !dlPassed(u) || S.dutyAutoOff) return;
+  S.dutyAutoOff = true;
+  store.update('users', S.auth.uid, {dutyTabOn:false})
+    .then(() => log(`回答の締切（${fmtDl(u.dutyDeadline)}）を過ぎたため「当番希望日」を自動で非表示（オフ）に変更`))
+    .catch(() => {}).finally(() => S.dutyAutoOff = false);
+}
 // 保護者の当番希望：日付をタップして複数選択 →「決定」でまとめて保存
 const fixedDuty = (e, uid) => e.dutyUid === uid && (e.duty || []).length;
 const myWishDates = () => new Set(S.events.filter(e => isDutyEv(e) && !isOver(e) && e.dutyWish?.[S.auth.uid]).map(e => e.date));
@@ -1327,9 +1376,13 @@ function renderDuty(){
   const y = S.month.getFullYear(), m = S.month.getMonth(), uid = S.auth.uid, pick = canWish();
   $('dutyMonth').textContent = `${y}年 ${m+1}月`;
   if (isMaster()) {
+    const dl = dutyDeadline();
     $('dutyOn').checked = dutyTabOn();
-    $('dutyOnMsg').textContent = dutyTabOn() ? '保護者・指導者に表示しています。' : '現在は非表示です（マスターにだけ見えています）。';
+    $('dutyOnMsg').textContent = dutyTabOn() ? `保護者・指導者に表示しています。${dl ? `（${fmtDl(dl)} 締切）` : '（締切なし）'}` : '現在は非表示です（マスターにだけ見えています）。';
+    $('dutyDlBox').classList.toggle('hidden', !dutyTabOn());
+    if (!S.dutyDlDirty) $('dutyDl').value = dl ? `${ymd(new Date(dl))}T${fmtAt(dl).split(' ')[1]}` : '';
   }
+  $('dutyDlNote').textContent = dutyDeadline() ? `回答の締切：${fmtDl(dutyDeadline())}` : '';
   if (pick && !S.dutyPick) S.dutyPick = myWishDates();
   renderDutyBar();
   if (pick) {
@@ -1421,6 +1474,8 @@ function editEvent(ev, date){
   S.events.forEach(x => { const p = (x.place || '').trim(); if (p) cnt[p] = (cnt[p] || 0) + 1; });
   const places = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || a.localeCompare(b, 'ja'));
   const parents = S.users.filter(u => roleLabel(u) !== 'マスター').map(u => u.name);
+  // 当番の選択肢は保護者と指導者で分けて表示
+  const dutyGroups = ['保護者', '指導者'].map(r => [r, S.users.filter(u => roleLabel(u) === r).map(u => u.name)]).filter(([, ns]) => ns.length);
   const duty = e.duty || [];
   const extra = duty.filter(n => !parents.includes(n));
   $('modalBody').innerHTML = `
@@ -1456,7 +1511,9 @@ function editEvent(ev, date){
       </div>
     </div>
     <label>当番に入る保護者・指導者</label>
-    <div class="chips">${parents.length ? parents.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('') : '<span class="meta">保護者・指導者のアカウントがまだありません</span>'}</div>
+    ${parents.length ? dutyGroups.map(([t, ns]) => `<div class="meta" style="margin:6px 0 4px">${t}</div>
+    <div class="chips">${ns.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('')}</div>`).join('')
+      : '<div class="chips"><span class="meta">保護者・指導者のアカウントがまだありません</span></div>'}
     <input id="eDutyExtra" style="margin-top:6px" placeholder="上記以外の名前（「、」区切り）" value="${esc(extra.join('、'))}">
     <label>メモ（集合時間・持ち物など）</label><textarea id="eNote" rows="3">${esc(e.note)}</textarea>
     <label>添付ファイル（PDF・画像など、1つ5MBまで。メンバー全員が見られます）</label>
