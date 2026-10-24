@@ -622,8 +622,8 @@ const evLabel = e => e.title || typeOf(e).label;
 const isOver = e => new Date(`${e.date}T${e.end || e.start || '23:59'}`) < new Date();
 // 自分（保護者なら自分の子、指導者なら名簿の自分）が対象のメンバー
 const myMemberIds = () => { const u = me(); if (!u) return []; return [...(u.childIds || []), ...(u.coachId ? [u.coachId] : [])]; };
-// 練習・体験会の指導者は出欠をとらず、「指導可能日」の回答で表示する
-const attTarget = (e, id) => !(e.type === 'practice' || e.type === 'trial') || S.members.find(m => m.id === id)?.type !== 'coach';
+// 練習・体験会・練習試合・大会の指導者は出欠をとらず、「指導可能日」の回答で表示する
+const attTarget = (e, id) => !isCoachEv(e) || S.members.find(m => m.id === id)?.type !== 'coach';
 // その日の自分の子（指導者は自分）の出欠：未回答があれば 'unans'、△があれば 'maybe'（終わった予定は対象外）
 function myAttState(evs){
   const ids = myMemberIds().filter(id => S.members.some(m => m.id === id));
@@ -883,7 +883,7 @@ function renderCal(){
         ${vlist && needsAtt(e) ? `<div class="kc"><span>参加${attN(e, 'o')}</span><span>不参加${attN(e, 'x')}</span></div>` : ''}
         ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>`
           : isDutyEv(e) && dutyWishers(e).length > 1 ? `<div class="duty">当番:希望${dutyWishers(e).length}人</div>` : ''}
-        ${vlist && isDutyEv(e) ? `<div class="duty">指導者:${esc(coachShown(e).map(w => w.name).join('・')) || '未定'}</div>` : ''}
+        ${vlist && isCoachEv(e) ? `<div class="duty">指導者:${esc(coachShown(e).map(w => w.name).join('・')) || '未定'}</div>` : ''}
       </div>`;
     }).join('');
     const num = vlist ? `<div class="vd"><span class="num">${d.getDate()}</span>(${'日月火水木金土'[dow]})</div><div class="vevs">${holiday(key) ? `<div class="hname">${holiday(key)}</div>` : ''}${evs}</div>`
@@ -1029,13 +1029,13 @@ function renderDay(date){
         ${e.place ? `<div>📍 ${esc(e.place)}</div>` : ''}
         <div>🧺 当番：${dutyShown(e).length ? esc(dutyShown(e).join('、'))
           : isDutyEv(e) && dutyWishers(e).length ? `<span class="meta">未定（希望：${esc(dutyWishers(e).map(w => w.name).join('、'))}）</span>` : '<span class="meta">未定</span>'}</div>
-        ${isDutyEv(e) ? `<div>👤 指導者：${coachShown(e).map(w => esc(w.name)).join('、') || '<span class="meta">未定</span>'}</div>` : ''}
+        ${isCoachEv(e) ? `<div>👤 指導者：${coachShown(e).map(w => esc(w.name)).join('、') || '<span class="meta">未定</span>'}</div>` : ''}
         ${e.note ? `<div style="white-space:pre-wrap">📝 ${esc(e.note)}</div>` : ''}
         ${(e.attachments || []).length ? `<div class="files">📎 ${e.attachments.map(a => `<button class="filebtn" data-file="${e.id}|${a.id}">${esc(a.name)} <span class="meta">${fmtSize(a.size)}</span></button>`).join('')}</div>` : ''}
         <div class="meta">最終更新：${esc(e.updatedByName || '')} ${e.updatedAt ? fmtAt(e.updatedAt) : ''}</div>
         ${needsAtt(e) ? `
           <h4>子供の出欠（参加 ${attN(e, 'o')}人・不参加 ${attN(e, 'x')}人）</h4>${kidAttSummary(e)}
-          ${isDutyEv(e) ? '' : `<h4>指導者の出欠（○ ${countAtt(e, coaches())}）</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}`}` : ''}
+          ${isCoachEv(e) ? '' : `<h4>指導者の出欠（○ ${countAtt(e, coaches())}）</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}`}` : ''}
         ${hasEscort(e) ? escortTable(e) : ''}
         ${isMaster() ? `<div class="actions"><button data-copy="${e.id}">📋 コピー</button><button data-edit="${e.id}">予定を編集</button><button class="danger" data-del="${e.id}">削除</button></div>` : ''}
       </div>`;
@@ -1254,6 +1254,10 @@ $('attNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(
 /* ---------- 当番希望日 ---------- */
 // 当番希望をとる予定（練習・体験会）
 const isDutyEv = e => e.type === 'practice' || e.type === 'trial';
+// 指導可能日をとる予定（練習・体験会・練習試合・大会）。指導者はこれらの出欠ではなく指導可能日で回答する
+const isCoachEv = e => isDutyEv(e) || e.type === 'match' || e.type === 'tournament';
+// 当番希望日タブで扱う予定（指導者は指導可能日をとる予定）
+const tabEv = e => coachMode() ? isCoachEv(e) : isDutyEv(e);
 // 当番を希望している保護者（希望した順。削除済みアカウントは除く）
 const dutyWishers = e => Object.entries(e.dutyWish || {}).filter(([, w]) => w)
   .map(([uid, w]) => ({uid, at:w.at, name:S.users.find(u => u.id === uid)?.name}))
@@ -1330,13 +1334,13 @@ function dutyAutoOff(){
 }
 // 保護者の当番希望：日付をタップして複数選択 →「決定」でまとめて保存
 const fixedDuty = (e, uid) => e.dutyUid === uid && (e.duty || []).length;
-const myWishDates = () => new Set(S.events.filter(e => isDutyEv(e) && !isOver(e) && e[DM().f]?.[S.auth.uid]).map(e => e.date));
-const wishable = key => eventsOn(key).some(e => isDutyEv(e) && !isOver(e));
+const myWishDates = () => new Set(S.events.filter(e => tabEv(e) && !isOver(e) && e[DM().f]?.[S.auth.uid]).map(e => e.date));
+const wishable = key => eventsOn(key).some(e => tabEv(e) && !isOver(e));
 function dutyChanges(){
   const uid = S.auth.uid, out = [];
   if (!S.dutyPick) return out;
   for (const e of S.events) {
-    if (!isDutyEv(e) || isOver(e)) continue;
+    if (!tabEv(e) || isOver(e)) continue;
     const want = S.dutyPick.has(e.date), has = !!e[DM().f]?.[uid];
     if (want !== has && (want || !fixedMine(e, uid))) out.push({e, want});
   }
@@ -1389,7 +1393,7 @@ function dutyTodo(){
   if (!canWish() || !dutyTabOn() || !u) return [];
   const uid = S.auth.uid, t = DM(), ng = u[t.ng] || {}, need = new Set(), done = new Set();
   for (const e of S.events) {
-    if (!isDutyEv(e)) continue;
+    if (!tabEv(e)) continue;
     const k = e.date.slice(0, 7);
     if (!isOver(e)) need.add(k);
     if (e[t.f]?.[uid] || fixedMine(e, uid)) done.add(k);
@@ -1402,7 +1406,7 @@ async function toggleDutyNG(){
   const uid = S.auth.uid, k = monthKey(), mm = S.month.getMonth() + 1, t = DM(), on = !(me()[t.ng] || {})[k];
   try {
     if (on) {
-      const evs = S.events.filter(e => isDutyEv(e) && !isOver(e) && e.date.startsWith(k));
+      const evs = S.events.filter(e => tabEv(e) && !isOver(e) && e.date.startsWith(k));
       if (evs.some(e => fixedMine(e, uid))) { alert(`${mm}月は当番に決定している日があるため、当番不可にできません。変更する場合はマスターに連絡してください。`); return; }
       const mine = evs.filter(e => e[t.f]?.[uid]);
       if (!confirm(mine.length ? `${mm}月の${t.wish}（${new Set(mine.map(e => e.date)).size}日）を取り消して「${t.ngLabel}」にしますか？` : `${mm}月は${t.can}がない（${t.ngLabel}）と回答しますか？`)) return;
@@ -1432,7 +1436,7 @@ function renderDuty(){
     if (!S.dutyDlDirty) $('dutyDl').value = dl ? `${ymd(new Date(dl))}T${fmtAt(dl).split(' ')[1]}` : '';
   }
   const t = DM(), coach = coachMode();
-  $('dutyGuide').textContent = coach ? '指導できる練習の日をタップして選び（複数可）、「決定」を押してください。回答はマスターに伝わります。'
+  $('dutyGuide').textContent = coach ? '指導できる練習・練習試合・大会の日をタップして選び（複数可）、「決定」を押してください。回答はマスターに伝わります。'
     : '当番に入れる練習の日をタップして選び（複数可）、「決定」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。';
   $('dutyLegWish').textContent = coach ? '自分が指導可能と回答した日' : '自分が当番を希望した日';
   $('dutyLegFixed').classList.toggle('hidden', coach);
@@ -1443,14 +1447,14 @@ function renderDuty(){
     const ng = !!(me()[t.ng] || {})[monthKey()];
     $('dutyNG').classList.toggle('on', ng);
     $('dutyNG').textContent = ng ? `✔ ${t.ngLabel}（取り消す）` : t.ngLabel;
-    $('dutyNG').disabled = !ng && !S.events.some(e => isDutyEv(e) && !isOver(e) && e.date.startsWith(monthKey()));
+    $('dutyNG').disabled = !ng && !S.events.some(e => tabEv(e) && !isOver(e) && e.date.startsWith(monthKey()));
   }
   const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), today = ymd(new Date());
   let html = ['日','月','火','水','木','金','土'].map((d, i) => `<div class="dow ${i==0?'sun':i==6?'sat':''}">${d}</div>`).join('');
   const weeks = Math.ceil((first.getDay() + new Date(y, m+1, 0).getDate()) / 7);
   for (let i = 0; i < weeks * 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
-    const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(isDutyEv);
+    const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(tabEv);
     const done = evs.length && evs.every(isOver), can = pick && wishable(key);
     const items = evs.map(e => {
       const ws = dutyWishers(e), shown = dutyShown(e), mine = fixedDuty(e, uid), ca = coachAvail(e);
