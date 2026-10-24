@@ -539,7 +539,7 @@ function localStore(){
 const S = { auth:null, users:[], members:[], events:[], logs:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
 S.month.setDate(1);
 // 予定編集で選べる時間帯（先頭が新規追加時の初期値）
-const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00']];
+const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00'], ['16:00', '18:00']];
 const TYPES = {
   practice:  {label:'練習',       c:'var(--practice)'},
   trial:     {label:'練習（体験会）', c:'var(--trial)'},
