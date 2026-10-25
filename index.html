@@ -287,7 +287,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- メンバー -->
   <section id="view-members" class="hidden">
-    <div class="banner">子供・指導者は「家庭情報登録」で登録した内容が反映されます。<span class="masterOnly">追加・編集・削除は「家庭情報登録」から行ってください。</span></div>
+    <div class="banner masterOnly">子供・指導者は「家庭情報登録」で登録した内容が反映されます。追加・編集・削除は「家庭情報登録」から行ってください。</div>
     <div class="cols">
       <div class="card">
         <h3>子供(選手)<span id="kidCount"></span></h3>
@@ -399,7 +399,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <label>お名前(表示名)</label><input id="sName"><select id="sNameSel" class="hidden"></select>
       <div class="meta hidden" id="sNameNote">「家庭情報登録」に登録された名前から選びます。一覧にない場合は、マスター権限の方に登録を依頼してください。</div>
       <div class="notMaster">
-        <div id="sAuto" class="banner" style="margin-top:10px"></div>
+        <div id="sAuto" class="banner" style="margin-top:10px;background:none"></div>
         <label><input type="checkbox" id="sNotify" style="width:auto"> 未回答の出欠があるとき、前日にメールでお知らせを受け取る</label>
       </div>
       <div class="err" id="sMsg"></div>
@@ -1991,8 +1991,7 @@ function showFamLink(){
   const o = nameOpts().find(x => x.key === key);
   $('sAuto').classList.toggle('hidden', isMaster());
   if (!o) { $('sAuto').innerHTML = nameOpts().length ? '名前を選ぶと、家庭情報から立場・子供が自動で設定されます。' : '家庭情報がまだ登録されていません。マスター権限の方に登録を依頼してください。'; return; }
-  $('sAuto').innerHTML = `<b>家庭情報(${esc(o.h.surname)}家)から自動で設定されます</b>
-    <br>立場：${esc(roleText(o.r))}
+  $('sAuto').innerHTML = `立場：${esc(roleText(o.r))}
     <br>子供：${esc(famKids(o.h).map(k => `${k.name}(${gradeOf(k)})`).join('・') || 'なし')}
     <br>続柄：${esc(o.r.rel)}${(o.r.posts || []).length ? `<br>役職：${esc(o.r.posts.join('・'))}` : ''}`;
 }
