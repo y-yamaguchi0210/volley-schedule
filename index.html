@@ -291,7 +291,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   <!-- 出欠確認（子供の出欠をカレンダーで入力） -->
   <section id="view-att" class="hidden">
     <div class="banner">お子さんの出欠を入力します。日付をタップするたびに「参加 → 不参加 → 未回答」と切り替わります。選び終わったら「決定」を押してください。入力した内容はカレンダーに反映されます。</div>
-    <div id="attNone" class="card meta hidden">「アカウント設定」で自分の子供を選択すると、出欠を入力できます。</div>
+    <div id="attNone" class="card meta hidden">家庭情報に自分の子供が登録されていると、ここで出欠を入力できます。「アカウント設定」で自分の名前を選択してください（子供がいない場合は入力はありません）。</div>
     <div id="attMain">
       <div class="calbar">
         <button id="attPrev">◀</button>
@@ -812,7 +812,7 @@ function render(){
   $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
   if (!dutyVis && S.tab === 'duty') { S.tab = 'cal'; S.dutyPick = null; }
   if (!isMaster() && (S.tab === 'log' || S.tab === 'family')) S.tab = 'cal';   // 更新履歴・家庭情報登録はマスターのみ
-  // 出欠確認タブは保護者とマスターのみ
+  // 出欠確認タブは全アカウントに表示
   $('attTabBtn').classList.toggle('hidden', !(inApp && canAttTab()));
   if (inApp && !canAttTab() && S.tab === 'att') { S.tab = 'cal'; S.attPick = null; }
   for (const t of ['cal', 'members', 'att', 'duty', 'family', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
@@ -1152,7 +1152,8 @@ function escortTable(e){
 }
 
 /* ---------- 出欠確認（子供の出欠をカレンダーで入力） ---------- */
-const canAttTab = () => isMaster() || (!!me() && roleLabel(me()) === '保護者');
+// 出欠確認タブは全アカウントに表示（入力できるのは自分の子供のみ）
+const canAttTab = () => isMaster() || !!me();
 // 入力できる子供：保護者は自分の子、マスターは全員
 const attKids = () => isMaster() ? kids() : kids().filter(k => myMemberIds().includes(k.id));
 const attN = (e, v) => kids().filter(k => e.attendance?.[k.id]?.v === v).length;
