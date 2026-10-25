@@ -396,9 +396,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <div class="card" style="max-width:560px">
       <h3>アカウント設定</h3>
       <div class="meta" id="sEmail"></div>
-      <label>お名前(表示名)</label><input id="sName"><select id="sNameSel" class="hidden"></select>
-      <div class="meta hidden" id="sNameNote">「家庭情報登録」に登録された名前から選びます。一覧にない場合は、マスター権限の方に登録を依頼してください。</div>
-      <div class="notMaster">
+      <label>お名前(表示名)</label><input id="sName"><select id="sNameSel" class="hidden"></select>      <div class="notMaster">
         <div id="sAuto" class="banner" style="margin-top:10px;background:none;border:none;padding:0"></div>
         <label><input type="checkbox" id="sNotify" style="width:auto"> 未回答の出欠があるとき、前日にメールでお知らせを受け取る</label>
       </div>
@@ -1950,9 +1948,7 @@ function renderSettings(){
   // マスター以外は、家庭情報に登録された親族(例：山口(父))から名前を選ぶ
   const opts = isMaster() ? [] : nameOpts(), useSel = opts.length > 0;
   $('sName').classList.toggle('hidden', useSel);
-  $('sNameSel').classList.toggle('hidden', !useSel);
-  $('sNameNote').classList.toggle('hidden', !useSel);
-  if (useSel) {
+  $('sNameSel').classList.toggle('hidden', !useSel);  if (useSel) {
     const cur = opts.find(o => o.key === u.famRel);
     // 他のアカウントが選択済みの名前は選択肢に出さない
     const free = opts.filter(o => (cur && o.key === cur.key) || !S.users.some(x => x.id !== S.auth?.uid && x.famRel === o.key));
