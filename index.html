@@ -12,7 +12,7 @@
 <script>
 /* ===== Firebase設定 =====
    README.md の手順で取得した値を貼り付けてください。
-   apiKey が空のままだと「デモモード」（この端末のブラウザ内だけに保存）で動きます。 */
+   apiKey が空のままだと「デモモード」(この端末のブラウザ内だけに保存)で動きます。 */
 window.FIREBASE_CONFIG = {
   apiKey: "AIzaSyD3Lz7C46Z3cKG0bHKt_eqTv4qerxgcGWg",
   authDomain: "wings-yoteihyo.firebaseapp.com",
@@ -136,7 +136,7 @@ h4{margin:14px 0 2px;font-size:14px}
 .day.done{background:#d3d6db}
 .day.done:hover{background:#c9cdd3}
 .day.done .ev{opacity:.65}
-/* 自分の子（指導者は自分）の出欠：未回答＝薄い赤、△＝薄い黄色 */
+/* 自分の子(指導者は自分)の出欠：未回答＝薄い赤、△＝薄い黄色 */
 .day.unans{background:#fde7e7}
 .day.unans:hover{background:#fbd9d9}
 .day.maybe{background:#fff5d1}
@@ -150,7 +150,7 @@ h4{margin:14px 0 2px;font-size:14px}
 .kidsw button{position:relative;padding:8px 14px;border-radius:999px}
 .kidsw button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 .attv.o{color:var(--ok)}.attv.x{color:var(--ng)}.attv.m{color:var(--maybe)}.attv.u{color:var(--muted);font-weight:400}
-/* カレンダーの子供の参加・不参加の人数（スマホでも表示） */
+/* カレンダーの子供の参加・不参加の人数(スマホでも表示) */
 .ev .kc{color:var(--muted)}
 .ev .kc span{display:inline-block;margin-right:4px}
 /* コピー */
@@ -226,13 +226,13 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <form id="authForm">
       <div id="signupFields" class="hidden">
         <label>合言葉</label><input id="fJoin" autocomplete="off" placeholder="チームから案内された合言葉">
-        <label>お名前（表示名）</label><input id="fName" placeholder="例：山田 花子">
+        <label>お名前(表示名)</label><input id="fName" placeholder="例：山田 花子">
         <label>立場</label>
         <select id="fRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
         <p class="meta">※登録後、「アカウント設定」で自分の名前を選んでください。</p>
       </div>
-      <label id="fEmailLabel">メールアドレス（またはアカウント名）</label><input id="fEmail" type="text" required autocomplete="username">
-      <div id="passFields"><label>パスワード（6文字以上）</label><input id="fPass" type="password" required minlength="6" autocomplete="current-password">
+      <label id="fEmailLabel">メールアドレス(またはアカウント名)</label><input id="fEmail" type="text" required autocomplete="username">
+      <div id="passFields"><label>パスワード(6文字以上)</label><input id="fPass" type="password" required minlength="6" autocomplete="current-password">
         <div class="meta" id="forgotInline" style="margin-top:4px"><a href="#" id="forgot2">パスワードを忘れた場合はこちら</a></div></div>
       <p class="meta hidden" id="resetHelp">登録したメールアドレスを入力して「再設定メールを送る」を押すと、パスワード変更画面のURLがメールで届きます。</p>
       <div class="err" id="authErr"></div>
@@ -255,11 +255,11 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     </div>
     <div class="legend">
       <span style="--c:var(--practice)">練習</span>
-      <span style="--c:var(--trial)">練習（体験会）</span>
+      <span style="--c:var(--trial)">練習(体験会)</span>
       <span style="--c:var(--match)">練習試合</span>
       <span style="--c:var(--tournament)">大会</span>
       <span style="--c:var(--off)">休み</span>
-      <span style="--c:var(--custom)">その他（学校行事など）</span>
+      <span style="--c:var(--custom)">その他(学校行事など)</span>
       <span class="notMaster" style="--c:#f8c9c9">出欠が未回答の日</span>
       <span class="notMaster" style="--c:#fbe7a1">△で回答した日</span>
       <span id="legendCnt">参加・不参加＝子供の人数</span>
@@ -272,7 +272,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <div class="banner">子供・指導者は「家庭情報登録」で登録した内容が反映されます。<span class="masterOnly">追加・編集・削除は「家庭情報登録」から行ってください。</span></div>
     <div class="cols">
       <div class="card">
-        <h3>子供（選手）<span id="kidCount"></span></h3>
+        <h3>子供(選手)<span id="kidCount"></span></h3>
         <div class="meta" id="kidBreak"></div>
         <ul class="list" id="kidList"></ul>
       </div>
@@ -289,10 +289,10 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     </div>
   </section>
 
-  <!-- 出欠確認（子供の出欠をカレンダーで入力） -->
+  <!-- 出欠確認(子供の出欠をカレンダーで入力) -->
   <section id="view-att" class="hidden">
     <div class="banner">お子さんの出欠を入力します。日付をタップするたびに「参加 → 不参加 → 未回答」と切り替わります。選び終わったら「決定」を押してください。入力した内容はカレンダーに反映されます。</div>
-    <div id="attNone" class="card meta hidden">家庭情報に自分の子供が登録されていると、ここで出欠を入力できます。「アカウント設定」で自分の名前を選択してください（子供がいない場合は入力はありません）。</div>
+    <div id="attNone" class="card meta hidden">家庭情報に自分の子供が登録されていると、ここで出欠を入力できます。「アカウント設定」で自分の名前を選択してください(子供がいない場合は入力はありません)。</div>
     <div id="attMain">
       <div class="calbar">
         <button id="attPrev">◀</button>
@@ -304,7 +304,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <div class="legend">
         <span style="--c:#86efac">参加</span>
         <span style="--c:#fca5a5">不参加</span>
-        <span style="--c:#fbe7a1">未定（以前の△）</span>
+        <span style="--c:#fbe7a1">未定(以前の△)</span>
         <span>✎＝未確定の変更</span>
       </div>
       <div class="grid" id="attGrid"></div>
@@ -317,7 +317,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <label style="margin:0;color:var(--text);font-size:15px"><input type="checkbox" id="dutyOn" style="width:auto"> 「当番希望日」を保護者に、「指導可能日」を指導者に表示する</label>
       <div class="meta" id="dutyOnMsg"></div>
       <div id="dutyDlBox" class="hidden">
-        <label>回答の締切日時（過ぎると自動で非表示になります）</label>
+        <label>回答の締切日時(過ぎると自動で非表示になります)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input type="datetime-local" id="dutyDl" style="width:auto">
           <button id="dutyDlSave">締切を設定</button>
@@ -336,18 +336,18 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     </div>
     <div class="legend">
       <span style="--c:var(--practice)">練習</span>
-      <span style="--c:var(--trial)">練習（体験会）</span>
+      <span style="--c:var(--trial)">練習(体験会)</span>
       <span class="notMaster" style="--c:#fbe7a1" id="dutyLegWish">自分が当番を希望した日</span>
       <span id="dutyLegFixed">★＝自分が当番に決定</span>
     </div>
     <div class="grid" id="dutyGrid"></div>
   </section>
 
-  <!-- 家庭情報登録（マスターのみ） -->
+  <!-- 家庭情報登録(マスターのみ) -->
   <section id="view-family" class="hidden">
     <div class="card">
       <h3>家庭情報<span id="famCount"></span></h3>
-      <div class="meta">登録した親族（保護者）は、大会・練習試合の「保護者の引率・車出し」の選択肢になります。</div>
+      <div class="meta">登録した親族(保護者)は、大会・練習試合の「保護者の引率・車出し」の選択肢になります。</div>
       <ul class="list" id="famList"></ul>
       <div id="famEdit"></div>
       <div id="famLoose"></div>
@@ -357,7 +357,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- 履歴 -->
   <section id="view-log" class="hidden">
-    <div class="card"><h3>更新履歴（新しい順・最大200件）</h3><ul class="list log" id="logList"></ul></div>
+    <div class="card"><h3>更新履歴(新しい順・最大200件)</h3><ul class="list log" id="logList"></ul></div>
   </section>
 
   <!-- アカウント設定 -->
@@ -365,7 +365,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <div class="card" style="max-width:560px">
       <h3>アカウント設定</h3>
       <div class="meta" id="sEmail"></div>
-      <label>お名前（表示名）</label><input id="sName"><select id="sNameSel" class="hidden"></select>
+      <label>お名前(表示名)</label><input id="sName"><select id="sNameSel" class="hidden"></select>
       <div class="meta hidden" id="sNameNote">「家庭情報登録」に登録された名前から選びます。一覧にない場合は、マスター権限の方に登録を依頼してください。</div>
       <div class="notMaster">
         <div id="sAuto" class="banner" style="margin-top:10px"></div>
@@ -377,8 +377,8 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <div class="card" style="max-width:560px;margin-top:16px">
       <h3>パスワードの変更</h3>
       <label>現在のパスワード</label><input id="pCur" type="password" autocomplete="current-password">
-      <label>新しいパスワード（6文字以上）</label><input id="pNew" type="password" autocomplete="new-password">
-      <label>新しいパスワード（確認）</label><input id="pNew2" type="password" autocomplete="new-password">
+      <label>新しいパスワード(6文字以上)</label><input id="pNew" type="password" autocomplete="new-password">
+      <label>新しいパスワード(確認)</label><input id="pNew2" type="password" autocomplete="new-password">
       <div class="err" id="pMsg"></div>
       <div class="actions"><button class="primary" id="pSave">パスワードを変更</button></div>
       <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:10px">
@@ -401,16 +401,16 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 <div id="modal" class="modal hidden"><div class="card" id="modalBody"></div></div>
 
 <script>
-/* ================= データ層（Firebase / デモ） ================= */
+/* ================= データ層(Firebase / デモ) ================= */
 const USE_FIREBASE = !!(window.FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && window.firebase);
-// マスター権限のアカウント（アカウント名 wings.com）。「@」のないアカウント名は内部で下記のメール形式に変換
+// マスター権限のアカウント(アカウント名 wings.com)。「@」のないアカウント名は内部で下記のメール形式に変換
 const MASTER_LOGIN = 'wings.com', LOGIN_DOMAIN = '@example.com';
 const toEmail = id => id.includes('@') ? id : id + LOGIN_DOMAIN;
 const MASTER_EMAIL = toEmail(MASTER_LOGIN);
 const loginName = email => String(email || '').endsWith(LOGIN_DOMAIN) ? email.slice(0, -LOGIN_DOMAIN.length) : email;
 const store = USE_FIREBASE ? firebaseStore() : localStore();
 
-/* 添付ファイルは Firestore の fileChunks コレクションに分割保存（無料プランで使えるよう Storage は使わない） */
+/* 添付ファイルは Firestore の fileChunks コレクションに分割保存(無料プランで使えるよう Storage は使わない) */
 const MAX_FILE = 5 * 1024 * 1024, CHUNK = 900000;
 function toB64(file){
   return new Promise((ok, ng) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = ng; r.readAsDataURL(file); });
@@ -430,7 +430,7 @@ function firebaseStore(){
     onAuth: cb => auth.onAuthStateChanged(u => cb(u ? {uid:u.uid, email:u.email} : null)),
     async signUp(email, pw, profile, joinKey){
       const c = await auth.createUserWithEmailAndPassword(email, pw);
-      // 合言葉はFirestoreのルールで確認（違えば作ったログイン情報を消す）。メールアドレスは本人とマスターだけが読める private に保存
+      // 合言葉はFirestoreのルールで確認(違えば作ったログイン情報を消す)。メールアドレスは本人とマスターだけが読める private に保存
       try { await db.collection('private').doc(c.user.uid).set({email:c.user.email, joinKey}); }
       catch (e) { await c.user.delete().catch(() => {}); throw {code:'join/denied'}; }
       await db.collection('users').doc(c.user.uid).set({...profile, createdAt: Date.now()});
@@ -520,7 +520,7 @@ function localStore(){
       save(); localStorage.setItem(SKEY, id); emit('users'); fireAuth();
     },
     async signIn(email, pw){
-      // デモのマスターはパスワード未設定で用意し、最初にログインしたときのパスワードをそのまま登録する（ソースにパスワードを書かないため）
+      // デモのマスターはパスワード未設定で用意し、最初にログインしたときのパスワードをそのまま登録する(ソースにパスワードを書かないため)
       const mu = col('users').master;
       if (email === MASTER_EMAIL && mu && !mu.password && String(pw).length >= 6) { mu.password = pw; save(); }
       const e = Object.entries(col('users')).find(([, u]) => u.email === email && u.password === pw);
@@ -555,9 +555,9 @@ function localStore(){
 /* ================= 状態 ================= */
 const S = { auth:null, users:[], members:[], events:[], logs:[], private:[], claims:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
 S.month.setDate(1);
-// 予定編集で選べる時間帯（先頭が新規追加時の初期値）
+// 予定編集で選べる時間帯(先頭が新規追加時の初期値)
 const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00'], ['16:00', '18:00']];
-// 日本の祝日（振替休日・国民の休日を含む）。年ごとに計算してキャッシュ
+// 日本の祝日(振替休日・国民の休日を含む)。年ごとに計算してキャッシュ
 const HOLI = {};
 function holidaysOf(y){
   if (HOLI[y]) return HOLI[y];
@@ -587,18 +587,18 @@ const holiday = key => holidaysOf(+key.slice(0, 4))[key] || '';
 const dowCls = (key, dow) => dow === 0 || holiday(key) ? 'sun' : dow === 6 ? 'sat' : '';
 const TYPES = {
   practice:  {label:'練習',       c:'var(--practice)'},
-  trial:     {label:'練習（体験会）', c:'var(--trial)'},
+  trial:     {label:'練習(体験会)', c:'var(--trial)'},
   match:     {label:'練習試合',   c:'var(--match)'},
   tournament:{label:'大会',       c:'var(--tournament)'},
   off:       {label:'休み',       c:'var(--off)'},
-  custom:    {label:'その他（手入力）', c:'var(--custom)'},
+  custom:    {label:'その他(手入力)', c:'var(--custom)'},
 };
-// 種別の表示名と色（手入力の場合は入力した名前）
+// 種別の表示名と色(手入力の場合は入力した名前)
 const typeOf = e => {
   const t = TYPES[e.type] || TYPES.practice;
   return e.type === 'custom' ? {label: e.typeName || 'その他', c: t.c} : t;
 };
-// 出欠をとる予定か（休みはとらない、手入力は設定次第）
+// 出欠をとる予定か(休みはとらない、手入力は設定次第)
 const needsAtt = e => e.type === 'off' ? false : e.type === 'custom' ? !!e.takeAtt : true;
 const ATT = {o:'○', m:'△', x:'×'};
 const $ = id => document.getElementById(id);
@@ -609,7 +609,7 @@ const fmtAt = t => { const d = new Date(t); return `${d.getMonth()+1}/${d.getDat
 const me = () => S.auth && S.users.find(u => u.id === S.auth.uid);
 const myName = () => me()?.name || S.auth?.email || '不明';
 const stamp = () => ({by:S.auth.uid, byName:myName(), at:Date.now()});
-// 学年（上の学年から順）
+// 学年(上の学年から順)
 const GRADES = ['6年', '5年', '4年', '3年', '2年', '1年'];
 const gradeRank = g => { const i = GRADES.indexOf(g); if (i >= 0) return i; const n = parseInt(String(g).replace(/[０-９]/g, c => c.charCodeAt(0) - 0xFEE0)); return n ? 6 - n : 99; };
 const gradeOptions = (sel = '') => `<option value="">学年</option>` + GRADES.map(g => `<option ${g===sel?'selected':''}>${g}</option>`).join('');
@@ -618,14 +618,14 @@ document.querySelectorAll('.gradeSel').forEach(s => s.innerHTML = gradeOptions()
 const GENDERS = ['女子', '男子'];
 const genderOptions = (sel = '') => `<option value="">男女</option>` + GENDERS.map(g => `<option ${g===sel?'selected':''}>${g}</option>`).join('');
 document.querySelectorAll('.genderSel').forEach(s => s.innerHTML = genderOptions());
-// 学年が未設定でも、名前に「６年」などが含まれていればそこから判定（全角数字も対応）
+// 学年が未設定でも、名前に「６年」などが含まれていればそこから判定(全角数字も対応)
 const gradeOf = m => {
   const norm = s => String(s || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const hit = norm(m.grade).match(/[1-6]/) || norm(m.name).match(/([1-6])\s*年/);
   return hit ? (hit[1] || hit[0]) + '年' : '';
 };
 const kids = () => S.members.filter(m => m.type === 'kid').sort((a, b) => gradeRank(gradeOf(a)) - gradeRank(gradeOf(b)) || a.name.localeCompare(b.name, 'ja'));
-// 指導者の役職（監督が上）
+// 指導者の役職(監督が上)
 const POSITIONS = ['監督', 'コーチ'];
 const posRank = p => { const i = POSITIONS.indexOf(p); return i >= 0 ? i : 99; };
 const posOptions = (sel = '') => `<option value="">役職</option>` + POSITIONS.map(p => `<option ${p===sel?'selected':''}>${p}</option>`).join('');
@@ -634,13 +634,13 @@ const subLabel = m => m.type === 'kid' ? gradeOf(m) : (m.position || '');
 const coaches = () => S.members.filter(m => m.type === 'coach').sort((a, b) => posRank(a.position) - posRank(b.position) || a.name.localeCompare(b.name, 'ja'));
 const log = text => store.add('logs', {...stamp(), text});
 const evLabel = e => e.title || typeOf(e).label;
-// 予定が終了したか（終了時刻、なければ開始時刻、どちらもなければその日の終わり）
+// 予定が終了したか(終了時刻、なければ開始時刻、どちらもなければその日の終わり)
 const isOver = e => new Date(`${e.date}T${e.end || e.start || '23:59'}`) < new Date();
-// 自分（保護者なら自分の子、指導者なら名簿の自分）が対象のメンバー
+// 自分(保護者なら自分の子、指導者なら名簿の自分)が対象のメンバー
 const myMemberIds = () => { const u = me(); if (!u) return []; return [...(u.childIds || []), ...(u.coachId ? [u.coachId] : [])]; };
 // 練習・体験会・練習試合・大会の指導者は出欠をとらず、「指導可能日」の回答で表示する
 const attTarget = (e, id) => !isCoachEv(e) || S.members.find(m => m.id === id)?.type !== 'coach';
-// その日の自分の子（指導者は自分）の出欠：未回答があれば 'unans'、△があれば 'maybe'（終わった予定は対象外）
+// その日の自分の子(指導者は自分)の出欠：未回答があれば 'unans'、△があれば 'maybe'(終わった予定は対象外)
 function myAttState(evs){
   const ids = myMemberIds().filter(id => S.members.some(m => m.id === id));
   let st = '';
@@ -654,7 +654,7 @@ function myAttState(evs){
   }
   return st;
 }
-// 自分に関係する未回答の出欠（これからの予定のみ）。due = 前日以降で締切
+// 自分に関係する未回答の出欠(これからの予定のみ)。due = 前日以降で締切
 function unanswered(){
   const ids = myMemberIds(), today = ymd(new Date());
   const tm = new Date(); tm.setDate(tm.getDate() + 1); const tomorrow = ymd(tm);
@@ -668,9 +668,9 @@ function unanswered(){
   }
   return out.sort((a, b) => a.e.date.localeCompare(b.e.date));
 }
-// 子供（指導者は名簿の自分）をまだ選んでいない（マスター以外）
+// 子供(指導者は名簿の自分)をまだ選んでいない(マスター以外)
 const needLink = () => { const u = me(); return !!u && !isMaster() && !myMemberIds().some(id => S.members.some(m => m.id === id)); };
-// 他のアカウントが選択済みの子供を選ぶ申請（マスターの承認待ち）
+// 他のアカウントが選択済みの子供を選ぶ申請(マスターの承認待ち)
 const requests = () => S.users.flatMap(u => (u.pendingChildIds || []).map(id => ({u, k: S.members.find(m => m.id === id && m.type === 'kid')})).filter(r => r.k));
 const reqButtons = r => `<button class="primary" data-appr="${r.u.id}|${r.k.id}">承認</button> <button class="danger" data-rej="${r.u.id}|${r.k.id}">却下</button>`;
 function bindReqButtons(root){
@@ -698,7 +698,7 @@ function renderAuth(){
   $('passFields').classList.toggle('hidden', resetMode);
   $('resetHelp').classList.toggle('hidden', !resetMode);
   $('fPass').required = !resetMode;
-  $('fEmailLabel').textContent = resetMode ? '登録したメールアドレス' : 'メールアドレス（またはアカウント名）';
+  $('fEmailLabel').textContent = resetMode ? '登録したメールアドレス' : 'メールアドレス(またはアカウント名)';
   $('fPass').autocomplete = signupMode ? 'new-password' : 'current-password';
   $('authSwitch').innerHTML = resetMode
     ? '<a id="back">ログイン画面に戻る</a>'
@@ -718,12 +718,12 @@ async function sendReset(){
   err.style.color = '';
   if (!raw) { err.textContent = '登録したメールアドレスを入力してください'; return; }
   if (!raw.includes('@') || toEmail(raw) === MASTER_EMAIL) {
-    err.textContent = 'マスターアカウントはメールを受け取れないため、Firebaseの管理画面でパスワードを再設定してください（README参照）'; return;
+    err.textContent = 'マスターアカウントはメールを受け取れないため、Firebaseの管理画面でパスワードを再設定してください(README参照)'; return;
   }
   try {
     await store.resetPassword(raw);
     err.style.color = 'var(--ok)';
-    err.textContent = `${raw} 宛にパスワード再設定用のURLを送信しました（登録済みのアドレスの場合のみ届きます）。迷惑メールフォルダもご確認ください。`;
+    err.textContent = `${raw} 宛にパスワード再設定用のURLを送信しました(登録済みのアドレスの場合のみ届きます)。迷惑メールフォルダもご確認ください。`;
   } catch (e) {
     err.textContent = e.code === 'demo' ? 'デモモードではメールを送信できません'
       : e.code === 'auth/invalid-email' ? 'メールアドレスの形式が正しくありません' : 'エラー: ' + (e.message || e.code);
@@ -750,7 +750,7 @@ $('authForm').onsubmit = async e => {
       if (!raw.includes('@')) { $('authErr').textContent = 'メールアドレスを入力してください'; return; }
       const join = $('fJoin').value.trim();
       if (!join) { $('authErr').textContent = '合言葉を入力してください'; return; }
-      // 登録が終わるまで（合言葉の確認が済むまで）データの読み込みを始めない
+      // 登録が終わるまで(合言葉の確認が済むまで)データの読み込みを始めない
       S.joining = true;
       try { await store.signUp(email, pw, {name, role:$('fRole').value, childIds:[], coachId:'', notify:true}, join); }
       finally { S.joining = false; handleAuth(S.lastAuth); }
@@ -766,8 +766,8 @@ store.onAuth(a => { S.lastAuth = a; if (!S.joining) handleAuth(a); });
 function handleAuth(a){
   S.auth = a;
   if (a && !S.unsubs) {
-    // 更新履歴（logs）はマスターだけが読み込む（Firestoreのルールでもマスター以外は読めない）
-    // マスターは private（メールアドレス）と claims（使用中の名前）も読み込む
+    // 更新履歴(logs)はマスターだけが読み込む(Firestoreのルールでもマスター以外は読めない)
+    // マスターは private(メールアドレス)と claims(使用中の名前)も読み込む
     S.unsubs = ['users', 'members', 'events', ...(isMaster() ? ['logs', 'private', 'claims'] : [])].map(c => store.subscribe(c, rows => {
       if (c === 'users') {
         // マスターが削除したアカウントは deleted フラグ付きで残る → 一覧から除外
@@ -782,7 +782,7 @@ function handleAuth(a){
     }, e => ['private', 'claims'].includes(c) || denied(e)));
   }
   if (!a && S.unsubs) {
-    // ログアウト時は購読を解除（次のログインで購読し直す）
+    // ログアウト時は購読を解除(次のログインで購読し直す)
     S.unsubs.forEach(u => typeof u === 'function' && u());
     S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
     S.users = S.members = S.events = S.logs = S.private = S.claims = [];
@@ -792,14 +792,14 @@ function handleAuth(a){
   ensureMasterProfile();
   render();
 }
-// 読み込みを拒否された（合言葉の登録がない・削除済み）アカウントはログアウト
+// 読み込みを拒否された(合言葉の登録がない・削除済み)アカウントはログアウト
 function denied(e){
   if (e?.code !== 'permission-denied') return alert('読み込みエラー: ' + (e?.message || e));
   if (S.deniedOut) return;
   S.deniedOut = true;
   store.signOut().then(() => {
     S.deniedOut = false; $('authErr').style.color = '';
-    $('authErr').textContent = 'このアカウントは現在利用できません（合言葉の登録が確認できないか、削除されたアカウントです）。マスター権限の方に連絡してください。';
+    $('authErr').textContent = 'このアカウントは現在利用できません(合言葉の登録が確認できないか、削除されたアカウントです)。マスター権限の方に連絡してください。';
   });
 }
 // 削除済みアカウントでログインしていたら強制ログアウト
@@ -827,9 +827,9 @@ function render(){
   $('auth').classList.toggle('hidden', inApp);
   $('tabs').classList.toggle('hidden', !inApp);
   $('logoutBtn').classList.toggle('hidden', !inApp);
-  $('who').textContent = inApp ? `${myName()} さん（${isMaster() ? 'マスター' : roleLabel(me())}）でログイン中` : '';
+  $('who').textContent = inApp ? `${myName()} さん(${isMaster() ? 'マスター' : roleLabel(me())})でログイン中` : '';
   document.body.classList.toggle('is-master', isMaster());
-  // 当番希望日タブはマスターがオンにしたときだけ表示（マスターには常に表示）
+  // 当番希望日タブはマスターがオンにしたときだけ表示(マスターには常に表示)
   // 締切の時刻ちょうどに表示を切り替えるため、その時刻に再描画を予約
   if (inApp) dutyAutoOff();
   clearTimeout(S.dutyTimer);
@@ -871,7 +871,7 @@ function countAtt(ev, list){
   const a = ev.attendance || {};
   return `${list.filter(m => a[m.id]?.v === 'o').length}/${list.length}`;
 }
-// カレンダーのマスに出す時間（スマホでは「〜終了」を折り返して2行で表示）
+// カレンダーのマスに出す時間(スマホでは「〜終了」を折り返して2行で表示)
 const evTime = e => e.start || e.end ? `<span class="tm">${esc(e.start || '')}${e.end ? `<span class="te">〜${esc(e.end)}</span>` : ''}</span>` : '';
 function eventsOn(date){ return S.events.filter(e => e.date === date).sort((a, b) => (a.start || '').localeCompare(b.start || '')); }
 
@@ -881,7 +881,7 @@ function renderCal(){
   const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay());
   const today = ymd(new Date()), K = kids(), C = coaches();
   if (!isMaster()) S.delMode = false;
-  // 子供（指導者は名簿の自分）が未選択ならお知らせ
+  // 子供(指導者は名簿の自分)が未選択ならお知らせ
   const link = needLink();
   $('linkBanner').classList.toggle('hidden', !link);
   if (link) {
@@ -892,15 +892,15 @@ function renderCal(){
   $('clipbar').classList.toggle('hidden', !S.clip);
   if (S.clip) {
     const n = S.pasteDates.size;
-    $('clipbar').innerHTML = `<span>📋 コピー中：${esc(S.clip.map(evLabel).join('、'))}<br>貼り付けたい日付をタップして選択（複数可・月をまたいでもOK）→「一括貼り付け」</span>
-      <button class="primary" id="pasteAll" ${n ? '' : 'disabled'}>一括貼り付け（${n}日）</button>
+    $('clipbar').innerHTML = `<span>📋 コピー中：${esc(S.clip.map(evLabel).join('、'))}<br>貼り付けたい日付をタップして選択(複数可・月をまたいでもOK)→「一括貼り付け」</span>
+      <button class="primary" id="pasteAll" ${n ? '' : 'disabled'}>一括貼り付け(${n}日)</button>
       ${n ? '<button id="pasteReset">選択をクリア</button>' : ''}
       <button id="clipClear">コピーを解除</button>`;
     $('pasteAll').onclick = pasteAll;
     if ($('pasteReset')) $('pasteReset').onclick = () => { S.pasteDates = new Set(); render(); };
     $('clipClear').onclick = () => { S.clip = null; S.pasteDates = new Set(); render(); };
   }
-  // レイアウト：月表示（種類・時間・当番）／縦一列（種類・時間・参加・不参加・当番）
+  // レイアウト：月表示(種類・時間・当番)／縦一列(種類・時間・参加・不参加・当番)
   const vlist = S.calLayout === 'list';
   $('layoutBtn').textContent = vlist ? '📅 月表示' : '☰ 縦一列';
   $('legendCnt').classList.toggle('hidden', !vlist);
@@ -952,7 +952,7 @@ async function pasteAll(){
 }
 $('prevM').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('nextM').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
-// レイアウトはこの端末に記憶（初期は月表示）
+// レイアウトはこの端末に記憶(初期は月表示)
 try { S.calLayout = localStorage.getItem('calLayout') || 'grid'; } catch { S.calLayout = 'grid'; }
 $('layoutBtn').onclick = () => {
   S.calLayout = S.calLayout === 'list' ? 'grid' : 'list';
@@ -960,7 +960,7 @@ $('layoutBtn').onclick = () => {
   render();
 };
 
-/* ---------- 予定の一括削除（マスターのみ） ---------- */
+/* ---------- 予定の一括削除(マスターのみ) ---------- */
 // カレンダー上で日をタップして選択 → まとめて削除
 const weekDates = key => { const d = new Date(key + 'T00:00'); d.setDate(d.getDate() - d.getDay()); return [...Array(7)].map((_, i) => { const x = new Date(d); x.setDate(d.getDate() + i); return ymd(x); }); };
 const monthDates = () => { const y = S.month.getFullYear(), m = S.month.getMonth(); return [...Array(new Date(y, m + 1, 0).getDate())].map((_, i) => ymd(new Date(y, m, i + 1))); };
@@ -975,14 +975,14 @@ function renderDelBar(){
   $('delbar').classList.toggle('hidden', !S.delMode);
   if (!S.delMode) return;
   const n = delTargets().length, days = S.delDates.size;
-  $('delbar').innerHTML = `<span>🗑 一括削除：削除する日をカレンダーでタップして選択（月をまたいでもOK）</span>
+  $('delbar').innerHTML = `<span>🗑 一括削除：削除する日をカレンダーでタップして選択(月をまたいでもOK)</span>
     <div class="chips">
       <label><input type="radio" name="delUnit" value="day" ${S.delUnit==='day'?'checked':''}>日ごと</label>
       <label><input type="radio" name="delUnit" value="week" ${S.delUnit==='week'?'checked':''}>週ごと</label>
     </div>
     <button id="delMonth">表示中の月をすべて選択</button>
     ${days ? '<button id="delReset">選択をクリア</button>' : ''}
-    <button class="danger" id="delRun" ${n ? '' : 'disabled'}>選択した${days}日の予定を削除（${n}件）</button>
+    <button class="danger" id="delRun" ${n ? '' : 'disabled'}>選択した${days}日の予定を削除(${n}件)</button>
     <button id="delExit">終了</button>`;
   document.querySelectorAll('input[name="delUnit"]').forEach(r => r.onchange = () => { S.delUnit = r.value; });
   $('delMonth').onclick = () => { monthDates().forEach(k => S.delDates.add(k)); render(); };
@@ -992,7 +992,7 @@ function renderDelBar(){
     const evs = delTargets(); if (!evs.length) return;
     const dates = [...new Set(evs.map(e => e.date))].sort();
     const fmt = s => s.slice(5).replace('-', '/');
-    const range = dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])}〜${fmt(dates.at(-1))}（${dates.length}日分）`;
+    const range = dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])}〜${fmt(dates.at(-1))}(${dates.length}日分)`;
     if (!confirm(`【確認】${range} の予定 ${evs.length}件 をすべて削除します。\n出欠・引率・車出しの回答も一緒に削除され、元に戻せません。\n\n本当に削除しますか？`)) return;
     $('delRun').disabled = true;
     for (const e of evs) await store.remove('events', e.id);
@@ -1015,7 +1015,7 @@ function openDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = fal
 function closeModal(){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; }
 $('modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
 
-// 出欠は自分の子／指導者本人（とマスター）のみ回答できる
+// 出欠は自分の子／指導者本人(とマスター)のみ回答できる
 const canAnswer = p => isMaster() || myMemberIds().includes(p.id);
 function attTable(ev, list, emptyMsg){
   if (!list.length) return `<div class="meta">${emptyMsg}</div>`;
@@ -1034,7 +1034,7 @@ const fmtSize = n => n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1
 const viewable = t => /^(application\/pdf|image\/|text\/)/.test(t || '');
 async function openFile(m){
   if (!m) return;
-  // PDF・画像は新しいタブで表示、それ以外はダウンロード（ポップアップブロック回避のため先にタブを開く）
+  // PDF・画像は新しいタブで表示、それ以外はダウンロード(ポップアップブロック回避のため先にタブを開く)
   const w = viewable(m.type) ? window.open('', '_blank') : null;
   if (w) w.document.write('<p style="font-family:sans-serif">読み込み中…</p>');
   try {
@@ -1044,10 +1044,10 @@ async function openFile(m){
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } catch {
     if (w) w.close();
-    alert('ファイルを開けませんでした（削除された可能性があります）');
+    alert('ファイルを開けませんでした(削除された可能性があります)');
   }
 }
-// どの予定からも参照されなくなった添付ファイルを削除（コピーした予定は同じファイルを共有）
+// どの予定からも参照されなくなった添付ファイルを削除(コピーした予定は同じファイルを共有)
 function cleanupFiles(list, goneEventIds = []){
   const used = new Set(S.events.filter(e => !goneEventIds.includes(e.id)).flatMap(e => (e.attachments || []).map(a => a.id)));
   list.filter(m => !used.has(m.id)).forEach(m => store.delFile(m).catch(() => {}));
@@ -1057,7 +1057,7 @@ function renderDay(date){
   const d = new Date(date + 'T00:00');
   const evs = eventsOn(date);
   $('modalBody').innerHTML = `
-    <h3>${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）${holiday(date) ? `<span style="color:var(--ng);font-size:13px;margin-left:6px">${holiday(date)}</span>` : ''}</h3>
+    <h3>${d.getMonth()+1}月${d.getDate()}日(${'日月火水木金土'[d.getDay()]})${holiday(date) ? `<span style="color:var(--ng);font-size:13px;margin-left:6px">${holiday(date)}</span>` : ''}</h3>
     ${evs.length ? '' : '<p class="meta">この日の予定はまだありません。</p>'}
     ${evs.map(e => {
       const t = typeOf(e);
@@ -1066,14 +1066,14 @@ function renderDay(date){
           ${e.type !== 'off' ? `<span>${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span>` : ''}</div>
         ${e.place ? `<div>📍 ${esc(e.place)}</div>` : ''}
         <div>🧺 当番：${dutyShown(e).length ? esc(dutyShown(e).join('、'))
-          : isDutyEv(e) && dutyWishers(e).length ? `<span class="meta">未定（希望：${esc(dutyWishers(e).map(w => w.name).join('、'))}）</span>` : '<span class="meta">未定</span>'}</div>
+          : isDutyEv(e) && dutyWishers(e).length ? `<span class="meta">未定(希望：${esc(dutyWishers(e).map(w => w.name).join('、'))})</span>` : '<span class="meta">未定</span>'}</div>
         ${isCoachEv(e) ? `<div>👤 指導者：${coachShown(e).map(w => esc(w.name)).join('、') || '<span class="meta">未定</span>'}</div>` : ''}
         ${e.note ? `<div style="white-space:pre-wrap">📝 ${esc(e.note)}</div>` : ''}
         ${(e.attachments || []).length ? `<div class="files">📎 ${e.attachments.map(a => `<button class="filebtn" data-file="${e.id}|${a.id}">${esc(a.name)} <span class="meta">${fmtSize(a.size)}</span></button>`).join('')}</div>` : ''}
         <div class="meta">最終更新：${esc(e.updatedByName || '')} ${e.updatedAt ? fmtAt(e.updatedAt) : ''}</div>
         ${needsAtt(e) ? `
-          <h4>子供の出欠（参加 ${attN(e, 'o')}人・不参加 ${attN(e, 'x')}人）</h4>${kidAttSummary(e)}
-          ${isCoachEv(e) ? '' : `<h4>指導者の出欠（○ ${countAtt(e, coaches())}）</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}`}` : ''}
+          <h4>子供の出欠(参加 ${attN(e, 'o')}人・不参加 ${attN(e, 'x')}人)</h4>${kidAttSummary(e)}
+          ${isCoachEv(e) ? '' : `<h4>指導者の出欠(○ ${countAtt(e, coaches())})</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}`}` : ''}
         ${hasEscort(e) ? escortTable(e) : ''}
         ${isMaster() ? `<div class="actions"><button data-copy="${e.id}">📋 コピー</button><button data-edit="${e.id}">予定を編集</button><button class="danger" data-del="${e.id}">削除</button></div>` : ''}
       </div>`;
@@ -1106,7 +1106,7 @@ function renderDay(date){
     await store.update('events', ev.id, {['attendance.' + mem.id]: {v:b.dataset.v, ...stamp()}});
     log(`${ev.date} ${evLabel(ev)}：${mem.name} を「${ATT[b.dataset.v]}」に変更`);
   });
-  // 引率・車出しの入力（変更したらすぐ保存）
+  // 引率・車出しの入力(変更したらすぐ保存)
   $('modalBody').querySelectorAll('.escrow').forEach(row => {
     const sync = () => {
       const car = row.querySelector('[data-car]').value;
@@ -1121,21 +1121,21 @@ function renderDay(date){
       const car = row.querySelector('[data-car]').value;
       const seats = car === 'yes' ? Math.max(0, parseInt(row.querySelector('[data-seats]').value) || 0) : 0;
       await store.update('events', ev.id, {['escort.' + fam.key]: {who, other, car, seats, ...stamp()}});
-      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `あり（子供${seats}人）` : car === 'no' ? 'なし' : '未回答'}」に変更`);
+      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `あり(子供${seats}人)` : car === 'no' ? 'なし' : '未回答'}」に変更`);
     });
   });
 }
 
-/* ---------- 保護者の引率・車出し（大会・練習試合） ---------- */
+/* ---------- 保護者の引率・車出し(大会・練習試合) ---------- */
 const ESCORTS = ['母', '父'];
 const splitNames = s => String(s || '').split(/[、,，・\s]+/).map(x => x.trim()).filter(Boolean);
-// 手入力欄の内容（以前に選択された祖父・祖母なども含める）
+// 手入力欄の内容(以前に選択された祖父・祖母なども含める)
 const escortOther = (cur, opts = ESCORTS) => [...(cur.who || []).filter(w => !opts.includes(w)), ...splitNames(cur.other)];
 const escortCount = (cur, opts = ESCORTS) => (cur.who || []).filter(w => opts.includes(w)).length + escortOther(cur, opts).length;
-// 引率の選択肢：家庭情報に登録された親族（保護者）、未登録なら母・父
+// 引率の選択肢：家庭情報に登録された親族(保護者)、未登録なら母・父
 const escortOpts = f => { const r = (householdOf(f)?.relatives || []).filter(x => x.role !== 'coach').map(x => x.rel); return r.length ? [...new Set(r)] : ESCORTS; };
 const hasEscort = e => e.type === 'match' || e.type === 'tournament';
-// 兄弟姉妹（メンバー登録の兄弟設定、または同じ保護者アカウントに紐づく子）は1家族にまとめて連名表示
+// 兄弟姉妹(メンバー登録の兄弟設定、または同じ保護者アカウントに紐づく子)は1家族にまとめて連名表示
 function families(){
   const K = kids(), parent = {};
   const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]));
@@ -1151,7 +1151,7 @@ function families(){
   return Object.values(groups).map(ks => ({key: ks.map(k => k.id).sort()[0], kids: ks}))
     .sort((a, b) => K.indexOf(a.kids[0]) - K.indexOf(b.kids[0]));
 }
-const famName = f => { const h = householdOf(f), n = f.kids.map(k => k.name).join('・'); return h ? `${h.surname}家（${n}）` : n; };
+const famName = f => { const h = householdOf(f), n = f.kids.map(k => k.name).join('・'); return h ? `${h.surname}家(${n})` : n; };
 function escortTable(e){
   const fams = families(), es = e.escort || {}, mine = myMemberIds();
   if (!fams.length) return '';
@@ -1163,14 +1163,14 @@ function escortTable(e){
   const seats = cars.reduce((n, f) => n + (es[f.key].seats || 0), 0);
   const going = kids().filter(k => att[k.id]?.v === 'o').length;
   return `<h4>保護者の引率・車出し</h4>
-    <div class="meta">引率 大人${adults}人 ／ 車 ${cars.length}台・子供 ${seats}人乗車可（出席の子供 ${going}人）
+    <div class="meta">引率 大人${adults}人 ／ 車 ${cars.length}台・子供 ${seats}人乗車可(出席の子供 ${going}人)
       ${seats < going ? ` <b style="color:var(--ng)">あと${going - seats}人分足りません</b>` : ''}</div>
     ${rows.map(f => {
       const cur = es[f.key] || {}, my = f.kids.some(k => mine.includes(k.id)), opts = escortOpts(f), h = householdOf(f);
       return `<div class="escrow ${my?'mine':''}" data-ev="${e.id}" data-fam="${f.key}">
-        <div class="escname">${my?'<span class="star">★</span>':''}${h ? `${esc(h.surname)}家 <span class="meta">（${esc(f.kids.map(k => k.name).join('・'))}）</span>` : `${esc(famName(f))} <span class="meta">の家族</span>`}</div>
+        <div class="escname">${my?'<span class="star">★</span>':''}${h ? `${esc(h.surname)}家 <span class="meta">(${esc(f.kids.map(k => k.name).join('・'))})</span>` : `${esc(famName(f))} <span class="meta">の家族</span>`}</div>
         <div class="chips">${opts.map(w => `<label><input type="checkbox" data-who value="${esc(w)}" ${(cur.who||[]).includes(w)?'checked':''}>${esc(w)}</label>`).join('')}
-          <input data-other value="${esc(escortOther(cur, opts).join('、'))}" placeholder="その他（例：祖母、叔父）" style="width:170px"></div>
+          <input data-other value="${esc(escortOther(cur, opts).join('、'))}" placeholder="その他(例：祖母、叔父)" style="width:170px"></div>
         <div class="escar">🚗
           <select data-car style="width:auto"><option value="">車出し：未回答</option><option value="yes" ${cur.car==='yes'?'selected':''}>出せる</option><option value="no" ${cur.car==='no'?'selected':''}>出せない</option></select>
           子供<input type="number" data-seats min="0" max="9" value="${cur.seats || ''}" style="width:60px">人乗せられる
@@ -1180,8 +1180,8 @@ function escortTable(e){
     }).join('')}`;
 }
 
-/* ---------- 出欠確認（子供の出欠をカレンダーで入力） ---------- */
-// 出欠確認タブは全アカウントに表示（入力できるのは自分の子供のみ）
+/* ---------- 出欠確認(子供の出欠をカレンダーで入力) ---------- */
+// 出欠確認タブは全アカウントに表示(入力できるのは自分の子供のみ)
 const canAttTab = () => isMaster() || !!me();
 // 入力できる子供：保護者は自分の子、マスターは全員
 const attKids = () => isMaster() ? kids() : kids().filter(k => myMemberIds().includes(k.id));
@@ -1189,9 +1189,9 @@ const attN = (e, v) => kids().filter(k => e.attendance?.[k.id]?.v === v).length;
 const attOpen = key => eventsOn(key).filter(e => needsAtt(e) && !isOver(e));
 const ATT_NEXT = {'': 'o', o: 'x', x: '', m: 'o'};
 const ATT_LABEL = {o: '参加', x: '不参加', m: '未定', '': '未回答'};
-// その日の回答（予定が複数ある日は最初の予定の回答）
+// その日の回答(予定が複数ある日は最初の予定の回答)
 const savedAtt = (kid, evs) => evs[0]?.attendance?.[kid]?.v || '';
-// 予定の画面に出す子供の出欠（参加・不参加などの名前一覧）
+// 予定の画面に出す子供の出欠(参加・不参加などの名前一覧)
 function kidAttSummary(e){
   const K = kids(), a = e.attendance || {}, mine = myMemberIds();
   if (!K.length) return '<div class="meta">「メンバー」タブで子供を登録してください</div>';
@@ -1214,7 +1214,7 @@ function attKidId(){
   if (!ks.some(k => k.id === S.attKid)) S.attKid = ks[0]?.id || '';
   return S.attKid;
 }
-// 未確定の変更（タップした日のうち、保存済みの回答と違う予定）
+// 未確定の変更(タップした日のうち、保存済みの回答と違う予定)
 function attChanges(){
   if (!S.attPick) return [];
   const kid = S.attPick.kid, out = [];
@@ -1239,7 +1239,7 @@ async function saveAtt(){
   const days = v => [...new Set(ch.filter(c => c.v === v).map(c => c.e.date.slice(5).replace('-', '/')))].join('・');
   try {
     for (const {e, v} of ch) await store.update('events', e.id, {['attendance.' + kid]: v ? {v, ...stamp()} : null});
-    log(`${k?.name || ''} の出欠を更新（${[['o', '参加'], ['x', '不参加'], ['', '未回答に戻す']].filter(([v]) => days(v)).map(([v, l]) => `${l}：${days(v)}`).join('／')}）`);
+    log(`${k?.name || ''} の出欠を更新(${[['o', '参加'], ['x', '不参加'], ['', '未回答に戻す']].filter(([v]) => days(v)).map(([v, l]) => `${l}：${days(v)}`).join('／')})`);
     S.attPick = null;
     alert('出欠を確定しました。');
   } catch (err) { saveErr(err); }
@@ -1252,8 +1252,8 @@ function renderAtt(){
   if (!kid) return;
   if (S.attPick && S.attPick.kid !== kid) S.attPick = null;
   $('attMonth').textContent = `${y}年 ${m+1}月`;
-  // 子供の切り替え：保護者はボタン（兄弟姉妹を1人ずつ）、マスターは全員から選択
-  const kname = k => `${esc(k.name)}${gradeOf(k) ? `（${esc(gradeOf(k))}）` : ''}`;
+  // 子供の切り替え：保護者はボタン(兄弟姉妹を1人ずつ)、マスターは全員から選択
+  const kname = k => `${esc(k.name)}${gradeOf(k) ? `(${esc(gradeOf(k))})` : ''}`;
   const todo = k => S.events.filter(e => needsAtt(e) && !isOver(e) && !e.attendance?.[k.id]).length;
   const sibs = isMaster() ? [] : families().filter(f => f.kids.some(k => ks.includes(k))).flatMap(f => f.kids).filter(k => !ks.includes(k));
   $('attKidBox').innerHTML = isMaster()
@@ -1270,7 +1270,7 @@ function renderAtt(){
   $('attKidBox').querySelectorAll('[data-attkid]').forEach(b => b.onclick = () => pickKid(b.dataset.attkid));
   if ($('attGoSettings')) $('attGoSettings').onclick = ev => { ev.preventDefault(); if (leaveAttOk()) { S.attPick = null; S.tab = 'settings'; S.settingsDirty = false; render(); } };
   const map = S.attPick?.map || {}, n = new Set(attChanges().map(c => c.e.date)).size;
-  $('attBar').innerHTML = `<span><b>📝 ${esc(S.members.find(x => x.id === kid)?.name || '')} の出欠</b><br>日付をタップ：参加 → 不参加 → 未回答（月をまたいでもOK）→「決定」で確定${n ? `<br><b>未確定の変更：${n}日</b>` : ''}</span>
+  $('attBar').innerHTML = `<span><b>📝 ${esc(S.members.find(x => x.id === kid)?.name || '')} の出欠</b><br>日付をタップ：参加 → 不参加 → 未回答(月をまたいでもOK)→「決定」で確定${n ? `<br><b>未確定の変更：${n}日</b>` : ''}</span>
     <button class="primary" id="attSave" ${n ? '' : 'disabled'}>決定</button>${n ? '<button id="attReset">変更を元に戻す</button>' : ''}`;
   $('attSave').onclick = saveAtt;
   if ($('attReset')) $('attReset').onclick = () => { S.attPick = null; render(); };
@@ -1295,47 +1295,47 @@ $('attPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(
 $('attNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
 
 /* ---------- 当番希望日 ---------- */
-// 当番希望をとる予定（練習・体験会）
+// 当番希望をとる予定(練習・体験会)
 const isDutyEv = e => e.type === 'practice' || e.type === 'trial';
-// 指導可能日をとる予定（練習・体験会・練習試合・大会）。指導者はこれらの出欠ではなく指導可能日で回答する
+// 指導可能日をとる予定(練習・体験会・練習試合・大会)。指導者はこれらの出欠ではなく指導可能日で回答する
 const isCoachEv = e => isDutyEv(e) || e.type === 'match' || e.type === 'tournament';
-// 当番希望日タブで扱う予定（指導者は指導可能日をとる予定）
+// 当番希望日タブで扱う予定(指導者は指導可能日をとる予定)
 const tabEv = e => coachMode() ? isCoachEv(e) : isDutyEv(e);
-// 当番を希望している保護者（希望した順。削除済みアカウントは除く）
+// 当番を希望している保護者(希望した順。削除済みアカウントは除く)
 const dutyWishers = e => Object.entries(e.dutyWish || {}).filter(([, w]) => w)
   .map(([uid, w]) => ({uid, at:w.at, name:S.users.find(u => u.id === uid)?.name}))
   .filter(w => w.name).sort((a, b) => a.at - b.at);
-// 表示する当番：決定済み（またはマスターが予定編集で入力）を優先、なければ希望者が1人ならその人
+// 表示する当番：決定済み(またはマスターが予定編集で入力)を優先、なければ希望者が1人ならその人
 const dutyShown = e => {
   if ((e.duty || []).length) return e.duty;
   const ws = isDutyEv(e) ? dutyWishers(e) : [];
   return ws.length === 1 ? [ws[0].name] : [];
 };
-// 当番を希望できるのはマスター以外（保護者・指導者）
+// 当番を希望できるのはマスター以外(保護者・指導者)
 const canWish = () => !isMaster() && !!me();
-// 指導者は「当番希望日」の代わりに「指導可能日」を同じ形式で回答する（予定の coachOk・アカウントの coachNG に保存）
+// 指導者は「当番希望日」の代わりに「指導可能日」を同じ形式で回答する(予定の coachOk・アカウントの coachNG に保存)
 const coachMode = () => canWish() && me().role === 'coach';
 const DM = () => coachMode()
   ? {f:'coachOk', ng:'coachNG', tab:'指導可能日', wish:'指導可能日', ngLabel:'指導不可', can:'指導できる日', done:'🙋指導可'}
   : {f:'dutyWish', ng:'dutyNG', tab:'当番希望日', wish:'当番希望', ngLabel:'当番不可', can:'当番に入れる日', done:'🙋希望済み'};
 // 指導者は当番に決定されないので、決定済みの扱いは保護者のみ
 const fixedMine = (e, uid) => !coachMode() && fixedDuty(e, uid);
-// 指導可能と回答した指導者（監督を優先、同じ役職は回答した順）
+// 指導可能と回答した指導者(監督を優先、同じ役職は回答した順)
 const coachAvail = e => Object.entries(e.coachOk || {}).filter(([, w]) => w)
   .map(([uid, w]) => { const u = S.users.find(x => x.id === uid); return {uid, at:w.at, name:u?.name, rank:posRank(S.members.find(m => m.id === u?.coachId)?.position)}; })
   .filter(w => w.name).sort((a, b) => a.rank - b.rank || a.at - b.at);
-// 指導者として表示する人：当番のみ（dutyRole:'duty'）に決定した指導者は除く
+// 指導者として表示する人：当番のみ(dutyRole:'duty')に決定した指導者は除く
 const coachShown = e => coachAvail(e).filter(w => !(e.dutyRole === 'duty' && e.dutyUid === w.uid && (e.duty || []).length));
 // 指導者を当番に決定したときの注記
-const dutyRoleNote = e => (e.duty || []).length && e.dutyRole ? (e.dutyRole === 'both' ? '（当番兼指導者）' : '（指導者が当番）') : '';
-const saveErr = err => alert('保存できませんでした：' + (err?.code === 'permission-denied' ? '権限がありません（Firestoreのルールの更新が必要です）' : (err?.message || err)));
-// 「当番希望日」タブの表示オン／オフ（マスターのアカウント情報に保存。未設定はオフ）
-// 回答の締切日時（dutyDeadline）を過ぎたら、オンのままでも非表示として扱う
+const dutyRoleNote = e => (e.duty || []).length && e.dutyRole ? (e.dutyRole === 'both' ? '(当番兼指導者)' : '(指導者が当番)') : '';
+const saveErr = err => alert('保存できませんでした：' + (err?.code === 'permission-denied' ? '権限がありません(Firestoreのルールの更新が必要です)' : (err?.message || err)));
+// 「当番希望日」タブの表示オン／オフ(マスターのアカウント情報に保存。未設定はオフ)
+// 回答の締切日時(dutyDeadline)を過ぎたら、オンのままでも非表示として扱う
 const dutyMasters = () => S.users.filter(u => (u.email === MASTER_EMAIL || u.role === 'master') && u.dutyTabOn === true);
 const dlPassed = u => !!u.dutyDeadline && Date.now() >= u.dutyDeadline;
 const dutyTabOn = () => dutyMasters().some(u => !dlPassed(u));
 const dutyDeadline = () => dutyMasters().find(u => !dlPassed(u))?.dutyDeadline || 0;
-const fmtDl = t => { const d = new Date(t); return `${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fmtDl = t => { const d = new Date(t); return `${d.getMonth()+1}月${d.getDate()}日(${'日月火水木金土'[d.getDay()]})${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 $('dutyOn').onchange = async () => {
   if (!isMaster()) return;
   const on = $('dutyOn').checked;
@@ -1343,7 +1343,7 @@ $('dutyOn').onchange = async () => {
   const patch = on && dlPassed(me() || {}) ? {dutyTabOn:on, dutyDeadline:0} : {dutyTabOn:on};
   try {
     await store.update('users', S.auth.uid, patch);
-    log(`「当番希望日」を${on ? '表示（オン）' : '非表示（オフ）'}に変更`);
+    log(`「当番希望日」を${on ? '表示(オン)' : '非表示(オフ)'}に変更`);
   } catch (err) { saveErr(err); render(); }
 };
 $('dutyDl').oninput = () => S.dutyDlDirty = true;
@@ -1372,7 +1372,7 @@ function dutyAutoOff(){
   if (!isMaster() || !u?.dutyTabOn || !dlPassed(u) || S.dutyAutoOff) return;
   S.dutyAutoOff = true;
   store.update('users', S.auth.uid, {dutyTabOn:false})
-    .then(() => log(`回答の締切（${fmtDl(u.dutyDeadline)}）を過ぎたため「当番希望日」を自動で非表示（オフ）に変更`))
+    .then(() => log(`回答の締切(${fmtDl(u.dutyDeadline)})を過ぎたため「当番希望日」を自動で非表示(オフ)に変更`))
     .catch(() => {}).finally(() => S.dutyAutoOff = false);
 }
 // 保護者の当番希望：日付をタップして複数選択 →「決定」でまとめて保存
@@ -1404,8 +1404,8 @@ function renderDutyBar(){
   const add = days(ch.filter(c => c.want)), del = days(ch.filter(c => !c.want));
   const k = monthKey(), mm = S.month.getMonth() + 1, t = DM();
   const state = (me()[t.ng] || {})[k] ? `<b>📵 ${mm}月は「${t.ngLabel}」で回答済みです</b><br>`
-    : dutyTodo().includes(k) ? `<b style="color:var(--ng)">⚠ ${mm}月の${t.tab}が未入力です（${t.can}がない場合は「${t.ngLabel}」を押してください）</b><br>` : '';
-  $('dutyBar').innerHTML = `<span>${state}🙋 ${t.can}をタップして選択（複数可・月をまたいでもOK）→「決定」で確定します。<br>
+    : dutyTodo().includes(k) ? `<b style="color:var(--ng)">⚠ ${mm}月の${t.tab}が未入力です(${t.can}がない場合は「${t.ngLabel}」を押してください)</b><br>` : '';
+  $('dutyBar').innerHTML = `<span>${state}🙋 ${t.can}をタップして選択(複数可・月をまたいでもOK)→「決定」で確定します。<br>
       選択中 ${S.dutyPick.size}日${ch.length ? `　<b>未確定の変更：${add ? `追加${add}日` : ''}${add && del ? '・' : ''}${del ? `取り消し${del}日` : ''}</b>` : ''}</span>
     <button class="primary" id="dutySave" ${ch.length ? '' : 'disabled'}>決定</button>
     ${ch.length ? '<button id="dutyReset">変更を元に戻す</button>' : ''}`;
@@ -1420,16 +1420,16 @@ async function saveDutyPick(){
   try {
     for (const {e, want} of ch) await store.update('events', e.id, {[t.f + '.' + uid]: want ? {at:Date.now()} : null});
     const add = ch.filter(c => c.want), del = ch.filter(c => !c.want);
-    // 希望を出した月の「当番不可」（指導者は「指導不可」）は解除
+    // 希望を出した月の「当番不可」(指導者は「指導不可」)は解除
     const ng = me()[t.ng] || {};
     for (const k of new Set(add.map(c => c.e.date.slice(0, 7)))) if (ng[k]) await store.update('users', uid, {[t.ng + '.' + k]: null});
-    log(`${t.wish}を更新${add.length ? `（${coachMode() ? '可能' : '希望'}：${fmt(add)}）` : ''}${del.length ? `（取り消し：${fmt(del)}）` : ''}`);
+    log(`${t.wish}を更新${add.length ? `(${coachMode() ? '可能' : '希望'}：${fmt(add)})` : ''}${del.length ? `(取り消し：${fmt(del)})` : ''}`);
     S.dutyPick = null;
     alert(`${t.wish}を確定しました。`);
   } catch (err) { saveErr(err); }
   render();
 }
-// 当番希望が未入力の月（これからの練習があり、希望も「当番不可」もない月）
+// 当番希望が未入力の月(これからの練習があり、希望も「当番不可」もない月)
 const monthKey = () => `${S.month.getFullYear()}-${pad(S.month.getMonth() + 1)}`;
 function dutyTodo(){
   const u = me();
@@ -1452,7 +1452,7 @@ async function toggleDutyNG(){
       const evs = S.events.filter(e => tabEv(e) && !isOver(e) && e.date.startsWith(k));
       if (evs.some(e => fixedMine(e, uid))) { alert(`${mm}月は当番に決定している日があるため、当番不可にできません。変更する場合はマスターに連絡してください。`); return; }
       const mine = evs.filter(e => e[t.f]?.[uid]);
-      if (!confirm(mine.length ? `${mm}月の${t.wish}（${new Set(mine.map(e => e.date)).size}日）を取り消して「${t.ngLabel}」にしますか？` : `${mm}月は${t.can}がない（${t.ngLabel}）と回答しますか？`)) return;
+      if (!confirm(mine.length ? `${mm}月の${t.wish}(${new Set(mine.map(e => e.date)).size}日)を取り消して「${t.ngLabel}」にしますか？` : `${mm}月は${t.can}がない(${t.ngLabel})と回答しますか？`)) return;
       for (const e of mine) await store.update('events', e.id, {[t.f + '.' + uid]: null});
       await store.update('users', uid, {[t.ng + '.' + k]: Date.now()});
       log(`${mm}月の${coachMode() ? '指導' : '当番'}を「${t.ngLabel}」で回答`);
@@ -1474,13 +1474,13 @@ function renderDuty(){
   if (isMaster()) {
     const dl = dutyDeadline();
     $('dutyOn').checked = dutyTabOn();
-    $('dutyOnMsg').textContent = dutyTabOn() ? `保護者・指導者に表示しています。${dl ? `（${fmtDl(dl)} 締切）` : '（締切なし）'}` : '現在は非表示です（マスターにだけ見えています）。';
+    $('dutyOnMsg').textContent = dutyTabOn() ? `保護者・指導者に表示しています。${dl ? `(${fmtDl(dl)} 締切)` : '(締切なし)'}` : '現在は非表示です(マスターにだけ見えています)。';
     $('dutyDlBox').classList.toggle('hidden', !dutyTabOn());
     if (!S.dutyDlDirty) $('dutyDl').value = dl ? `${ymd(new Date(dl))}T${fmtAt(dl).split(' ')[1]}` : '';
   }
   const t = DM(), coach = coachMode();
-  $('dutyGuide').textContent = coach ? '指導できる練習・練習試合・大会の日をタップして選び（複数可）、「決定」を押してください。回答はマスターに伝わります。'
-    : '当番に入れる練習の日をタップして選び（複数可）、「決定」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。';
+  $('dutyGuide').textContent = coach ? '指導できる練習・練習試合・大会の日をタップして選び(複数可)、「決定」を押してください。回答はマスターに伝わります。'
+    : '当番に入れる練習の日をタップして選び(複数可)、「決定」を押してください。希望者が1人ならその方が当番になり、複数いる場合はマスターが1人を決定します。決まった当番はカレンダーにも表示されます。';
   $('dutyLegWish').textContent = coach ? '自分が指導可能と回答した日' : '自分が当番を希望した日';
   $('dutyLegFixed').classList.toggle('hidden', coach);
   $('dutyDlNote').textContent = dutyDeadline() ? `回答の締切：${fmtDl(dutyDeadline())}` : '';
@@ -1489,7 +1489,7 @@ function renderDuty(){
   if (pick) {
     const ng = !!(me()[t.ng] || {})[monthKey()];
     $('dutyNG').classList.toggle('on', ng);
-    $('dutyNG').textContent = ng ? `✔ ${t.ngLabel}（取り消す）` : t.ngLabel;
+    $('dutyNG').textContent = ng ? `✔ ${t.ngLabel}(取り消す)` : t.ngLabel;
     $('dutyNG').disabled = !ng && !S.events.some(e => tabEv(e) && !isOver(e) && e.date.startsWith(monthKey()));
   }
   const first = new Date(y, m, 1), start = new Date(y, m, 1 - first.getDay()), today = ymd(new Date());
@@ -1504,7 +1504,7 @@ function renderDuty(){
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
         ${evTime(e)}
-        ${coach ? '' : `<div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人（未決定）` : '<span class="meta">希望者なし</span>'}</div>`}
+        ${coach ? '' : `<div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人(未決定)` : '<span class="meta">希望者なし</span>'}</div>`}
         ${isMaster() && ca.length ? `<div class="duty">指導可:${ca.length}人</div>` : ''}
         ${pick && !isOver(e) && e[t.f]?.[uid] ? `<div class="wish">${t.done}</div>` : ''}
       </div>`;
@@ -1519,7 +1519,7 @@ function renderDuty(){
 function openDutyDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = true; renderDutyDay(date); $('modal').classList.remove('hidden'); }
 function renderDutyDay(date){
   const d = new Date(date + 'T00:00'), evs = eventsOn(date).filter(isDutyEv);
-  $('modalBody').innerHTML = `<h3>🧺 ${d.getMonth()+1}月${d.getDate()}日（${'日月火水木金土'[d.getDay()]}）の当番</h3>
+  $('modalBody').innerHTML = `<h3>🧺 ${d.getMonth()+1}月${d.getDate()}日(${'日月火水木金土'[d.getDay()]})の当番</h3>
     ${evs.map(dutyItem).join('') || '<p class="meta">この日は練習の予定がありません。</p>'}
     <div class="actions"><button id="closeM">閉じる</button></div>`;
   $('closeM').onclick = closeModal;
@@ -1528,7 +1528,7 @@ function renderDutyDay(date){
 function dutyItem(e){
   const uid = S.auth.uid, over = isOver(e), ws = dutyWishers(e), shown = dutyShown(e);
   const ca = coachAvail(e), dRole = e.dutyRole && (e.duty || []).length ? e.dutyRole : '';
-  const status = shown.length ? `<b>当番：${esc(shown.join('、'))}</b>${(e.duty || []).length ? (dRole ? ` <span class="meta">${dutyRoleNote(e)}</span>` : '') : ' <span class="meta">（希望者1人のため）</span>'}`
+  const status = shown.length ? `<b>当番：${esc(shown.join('、'))}</b>${(e.duty || []).length ? (dRole ? ` <span class="meta">${dutyRoleNote(e)}</span>` : '') : ' <span class="meta">(希望者1人のため)</span>'}`
     : ws.length ? `<b style="color:var(--maybe)">希望${ws.length}人・マスターの決定待ち</b>` : '<span class="meta">当番の希望者はまだいません</span>';
   // 当番の希望者がいないときは、指導可能な指導者を「当番兼指導者」または「当番」に決定できる
   const coachPick = isMaster() && !over && !ws.length && ca.length;
@@ -1573,16 +1573,16 @@ function bindDuty(root){
   });
   root.querySelectorAll('[data-dundo]').forEach(b => b.onclick = async () => {
     const e = S.events.find(x => x.id === b.dataset.dundo);
-    if (!isMaster() || !e || !confirm(`${e.date} ${evLabel(e)} の当番（${e.duty.join('、')}）の決定を取り消しますか？`)) return;
+    if (!isMaster() || !e || !confirm(`${e.date} ${evLabel(e)} の当番(${e.duty.join('、')})の決定を取り消しますか？`)) return;
     try {
       await store.update('events', e.id, {duty:[], dutyUid:'', dutyRole:'', updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now()});
-      log(`${e.date} ${evLabel(e)}：当番（${e.duty.join('、')}）の決定を取り消し`);
+      log(`${e.date} ${evLabel(e)}：当番(${e.duty.join('、')})の決定を取り消し`);
     } catch (err) { saveErr(err); }
   });
 }
 $('dutyPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('dutyNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
-// カレンダー（出欠確認・当番希望日／指導可能日も）は左右スワイプで月を切り替え
+// カレンダー(出欠確認・当番希望日／指導可能日も)は左右スワイプで月を切り替え
 [['grid', 'prevM', 'nextM'], ['attGrid', 'attPrev', 'attNext'], ['dutyGrid', 'dutyPrev', 'dutyNext']].forEach(([g, p, n]) => {
   let sx = null, sy = 0;
   $(g).addEventListener('touchstart', ev => { if (ev.touches.length !== 1) { sx = null; return; } sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; }, {passive:true});
@@ -1601,7 +1601,7 @@ function editEvent(ev, date){
   S.editing = true;
   const e = ev || {type:'practice', date, start:TIME_PRESETS[0][0], end:TIME_PRESETS[0][1], duty:[]};
   let keep = [...(e.attachments || [])], pending = [];
-  // 過去に使った場所（よく使う順）を選択肢にする
+  // 過去に使った場所(よく使う順)を選択肢にする
   const cnt = {};
   S.events.forEach(x => { const p = (x.place || '').trim(); if (p) cnt[p] = (cnt[p] || 0) + 1; });
   const places = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || a.localeCompare(b, 'ja'));
@@ -1615,17 +1615,17 @@ function editEvent(ev, date){
     <label>種類</label>
     <select id="eType">${Object.entries(TYPES).map(([k, t]) => `<option value="${k}" ${e.type===k?'selected':''}>${t.label}</option>`).join('')}</select>
     <div id="eCustomBox">
-      <label>種別名（例：運動会・授業参観・遠足）</label>
+      <label>種別名(例：運動会・授業参観・遠足)</label>
       <input id="eTypeName" list="typeNameList" value="${esc(e.typeName)}" placeholder="自由に入力">
       <datalist id="typeNameList">${[...new Set(S.events.filter(x => x.type === 'custom' && x.typeName).map(x => x.typeName))].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
       <label><input type="checkbox" id="eTakeAtt" style="width:auto" ${e.takeAtt ? 'checked' : ''}> この予定で出欠をとる</label>
     </div>
-    <label>タイトル（大会名・対戦相手など、任意）</label><input id="eTitle" value="${esc(e.title)}">
+    <label>タイトル(大会名・対戦相手など、任意)</label><input id="eTitle" value="${esc(e.title)}">
     <div class="row">
       <div><label>日付</label><input id="eDate" type="date" value="${esc(e.date)}"></div>
       <div><label>場所</label>
         ${places.length ? `<select id="ePlaceSel">
-          <option value="">${places.includes(e.place || '') ? '（場所を選択）' : '新しい場所を入力 ↓'}</option>
+          <option value="">${places.includes(e.place || '') ? '(場所を選択)' : '新しい場所を入力 ↓'}</option>
           ${places.map(p => `<option ${p === e.place ? 'selected' : ''}>${esc(p)}</option>`).join('')}
         </select>` : ''}
         <input id="ePlace" value="${esc(e.place)}" placeholder="例：〇〇小学校 体育館" style="margin-top:4px"></div>
@@ -1635,10 +1635,10 @@ function editEvent(ev, date){
       <div id="eTimeRow">
       <label>時間帯</label>
       <select id="ePreset">${TIME_PRESETS.map(([s, en]) => `<option value="${s}-${en}" ${e.start === s && e.end === en ? 'selected' : ''}>${s}〜${en}</option>`).join('')}
-        <option value="" ${TIME_PRESETS.some(([s, en]) => e.start === s && e.end === en) ? '' : 'selected'}>その他（下で入力）</option></select>
+        <option value="" ${TIME_PRESETS.some(([s, en]) => e.start === s && e.end === en) ? '' : 'selected'}>その他(下で入力)</option></select>
       <div class="row">
         <div><label>開始</label><input id="eStart" type="time" value="${esc(e.start)}"></div>
-        <div><label>終了（任意）</label><input id="eEnd" type="time" value="${esc(e.end)}"></div>
+        <div><label>終了(任意)</label><input id="eEnd" type="time" value="${esc(e.end)}"></div>
       </div>
       </div>
     </div>
@@ -1646,13 +1646,13 @@ function editEvent(ev, date){
     ${parents.length ? dutyGroups.map(([t, ns]) => `<div class="meta" style="margin:6px 0 4px">${t}</div>
     <div class="chips">${ns.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('')}</div>`).join('')
       : '<div class="chips"><span class="meta">保護者・指導者のアカウントがまだありません</span></div>'}
-    <input id="eDutyExtra" style="margin-top:6px" placeholder="上記以外の名前（「、」区切り）" value="${esc(extra.join('、'))}">
-    <label>メモ（集合時間・持ち物など）</label><textarea id="eNote" rows="3">${esc(e.note)}</textarea>
-    <label>添付ファイル（PDF・画像など、1つ5MBまで。メンバー全員が見られます）</label>
+    <input id="eDutyExtra" style="margin-top:6px" placeholder="上記以外の名前(「、」区切り)" value="${esc(extra.join('、'))}">
+    <label>メモ(集合時間・持ち物など)</label><textarea id="eNote" rows="3">${esc(e.note)}</textarea>
+    <label>添付ファイル(PDF・画像など、1つ5MBまで。メンバー全員が見られます)</label>
     <div class="files" id="eFiles"></div>
     <div class="drop" id="eDrop" tabindex="0">📎 タップしてファイルを選択<br><span class="meta">またはここにドラッグ／Ctrl+V で貼り付け</span></div>
     <input type="file" id="eFileIn" multiple accept=".pdf,image/*,.doc,.docx,.xls,.xlsx,.txt" class="hidden">
-    ${!ev ? `<label><input type="checkbox" id="eRepeat" style="width:auto"> 同じ曜日で毎週くり返す（その月の終わりまで）</label>` : ''}
+    ${!ev ? `<label><input type="checkbox" id="eRepeat" style="width:auto"> 同じ曜日で毎週くり返す(その月の終わりまで)</label>` : ''}
     <div class="err" id="eErr"></div>
     <div class="actions"><button id="eCancel">戻る</button><button class="primary" id="eSave">保存</button></div>`;
   // 休み、または「時間を入力しない」のときは時間欄を隠す
@@ -1772,14 +1772,14 @@ function renderMembers(){
   $('coachBreak').textContent = breakdown(C, POSITIONS, m => m.position);
   const U = S.users.filter(u => roleLabel(u) !== 'マスター');
   $('userCount').textContent = `　${U.length}件`;
-  // 家庭数：保護者アカウントの子供を兄弟姉妹ごとの家族にまとめて数える（父母が別アカウントでも1家庭）
+  // 家庭数：保護者アカウントの子供を兄弟姉妹ごとの家族にまとめて数える(父母が別アカウントでも1家庭)
   const famOf = {};
   families().forEach(f => f.kids.forEach(k => famOf[k.id] = f.key));
   const P = U.filter(u => u.role !== 'coach');
   const homes = new Set(P.flatMap(u => (u.childIds || []).map(id => famOf[id]).filter(Boolean))).size;
   const noKid = P.filter(u => !(u.childIds || []).some(id => famOf[id])).length;
-  $('userBreak').textContent = `保護者 ${P.length}人（${homes}家庭${noKid ? `・子供未設定 ${noKid}人` : ''}）・指導者 ${U.filter(u => u.role === 'coach').length}人`;
-  // 子供は女子・男子に分けて表示（未設定の子は最後）
+  $('userBreak').textContent = `保護者 ${P.length}人(${homes}家庭${noKid ? `・子供未設定 ${noKid}人` : ''})・指導者 ${U.filter(u => u.role === 'coach').length}人`;
+  // 子供は女子・男子に分けて表示(未設定の子は最後)
   $('kidList').innerHTML = [...GENDERS, ''].map(g => [g, K.filter(k => (GENDERS.includes(k.gender) ? k.gender : '') === g)])
     .filter(([, list]) => list.length)
     .map(([g, list]) => `<li class="ghead"><span><b>${g || '男女未設定'}</b> <span class="meta">${list.length}人</span></span></li>` + list.map(li).join('')).join('')
@@ -1788,19 +1788,19 @@ function renderMembers(){
   const nameOf = id => S.members.find(m => m.id === id)?.name;
   $('userList').innerHTML = S.users.map(u => {
     const ks = (u.childIds || []).map(nameOf).filter(Boolean);
-    const info = roleLabel(u) === 'マスター' ? 'マスター（管理者）' : u.role === 'coach'
-      ? '指導者' + (nameOf(u.coachId) ? `（名簿：${esc(nameOf(u.coachId))}）` : '（名簿未設定）')
-      : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の${esc(u.relation || '保護者')}` : '（子供未設定）');
+    const info = roleLabel(u) === 'マスター' ? 'マスター(管理者)' : u.role === 'coach'
+      ? '指導者' + (nameOf(u.coachId) ? `(名簿：${esc(nameOf(u.coachId))})` : '(名簿未設定)')
+      : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の${esc(u.relation || '保護者')}` : '(子供未設定)');
     const canEdit = isMaster() && roleLabel(u) !== 'マスター';
     if (canEdit && S.editUser === u.id) return userEditLi(u);
     const delBtn = canEdit ? `<span style="white-space:nowrap"><button data-eduser="${u.id}">編集</button><button class="danger" data-rmuser="${u.id}">削除</button></span>` : '';
     const reqs = requests().filter(r => r.u.id === u.id);
     return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}${canEdit && mailOf(u) ? `・${esc(loginName(mailOf(u)))}` : ''}</span></span>${delBtn}
-      ${reqs.map(r => `<div style="width:100%" class="meta">⏳ ${esc(r.k.name)} の選択を申請中（${esc(takenBy(r.k.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）
+      ${reqs.map(r => `<div style="width:100%" class="meta">⏳ ${esc(r.k.name)} の選択を申請中(${esc(takenBy(r.k.id).map(o => o.name).join('・') || 'なし')}さんが選択済み)
         ${isMaster() ? reqButtons(r) : ''}</div>`).join('')}</li>`;
   }).join('');
   bindReqButtons($('userList'));
-  // マスターによるアカウントの編集（名前＝家庭情報の親族を選ぶと、立場・子供も自動で設定）
+  // マスターによるアカウントの編集(名前＝家庭情報の親族を選ぶと、立場・子供も自動で設定)
   document.querySelectorAll('[data-eduser]').forEach(b => b.onclick = () => { S.editUser = b.dataset.eduser; renderMembers(); });
   if (S.editUser) {
     const sel = $('euSel'), showName = () => $('euName').classList.toggle('hidden', sel.value !== '');
@@ -1816,16 +1816,16 @@ function renderMembers(){
       try { await moveClaim(u.id, u.famKey || '', 'famKey' in patch ? patch.famKey : u.famKey || ''); }
       catch { $('euMsg').textContent = `${name} は他のアカウントが選択済みです`; return; }
       await store.update('users', u.id, patch);
-      log(`アカウント「${u.name}」を編集${u.name !== name ? `（→${name}）` : ''}`);
+      log(`アカウント「${u.name}」を編集${u.name !== name ? `(→${name})` : ''}`);
       S.editUser = null; renderMembers();
     };
   }
-  // マスターによるアカウント削除（ログインできないよう deleted フラグを付け、子供の選択を解除）
+  // マスターによるアカウント削除(ログインできないよう deleted フラグを付け、子供の選択を解除)
   document.querySelectorAll('[data-rmuser]').forEach(b => b.onclick = async () => {
     const u = S.users.find(x => x.id === b.dataset.rmuser);
-    if (!confirm(`${u.name} さんのアカウントを削除しますか？\n（このアカウントではログインできなくなります）`)) return;
+    if (!confirm(`${u.name} さんのアカウントを削除しますか？\n(このアカウントではログインできなくなります)`)) return;
     await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:'', famRel:'', famKey:''});
-    // 使用中の名前とメールアドレス（private）も消す → このアカウントではデータを読めなくなる
+    // 使用中の名前とメールアドレス(private)も消す → このアカウントではデータを読めなくなる
     if (u.famKey) await store.remove('claims', u.famKey).catch(() => {});
     await store.remove('private', u.id).catch(() => {});
     log(`アカウント「${u.name}」を削除`);
@@ -1835,9 +1835,9 @@ function renderMembers(){
 function userEditLi(u){
   const free = nameOpts().filter(o => o.key === u.famRel || !S.users.some(x => x.id !== u.id && x.famRel === o.key));
   return `<li style="flex-wrap:wrap"><div style="width:100%">
-    <div class="meta">${esc(u.name)} さんのアカウント${mailOf(u) ? `（${esc(loginName(mailOf(u)))}）` : ''}を編集</div>
+    <div class="meta">${esc(u.name)} さんのアカウント${mailOf(u) ? `(${esc(loginName(mailOf(u)))})` : ''}を編集</div>
     <label>お名前</label>
-    <select id="euSel"><option value="">（家庭情報と紐付けない）</option>${free.map(o =>
+    <select id="euSel"><option value="">(家庭情報と紐付けない)</option>${free.map(o =>
       `<option value="${esc(o.key)}" ${o.key === u.famRel ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
     <input id="euName" value="${esc(u.name || '')}" placeholder="お名前">
     <div class="meta">家庭情報の名前を選ぶと、立場・子供が自動で設定されます。</div>
@@ -1845,9 +1845,9 @@ function userEditLi(u){
     <div class="actions"><button class="primary" id="euSave">保存</button><button id="euCancel">キャンセル</button></div>
     <div id="euMsg" class="meta" style="color:var(--ng)"></div></div></li>`;
 }
-// アカウントのメールアドレス（マスターだけが読める private から）
+// アカウントのメールアドレス(マスターだけが読める private から)
 const mailOf = u => S.private.find(p => p.id === u.id)?.email || u.email;
-// 兄弟姉妹（同じ familyId を持つ子）
+// 兄弟姉妹(同じ familyId を持つ子)
 const siblingsOf = m => m.familyId ? kids().filter(k => k.id !== m.id && k.familyId === m.familyId) : [];
 
 /* ---------- アカウント設定 ---------- */
@@ -1855,7 +1855,7 @@ function renderSettings(){
   const u = me(); if (!u) return;
   $('sEmail').textContent = (isMaster() ? 'マスター権限のアカウント：' : 'ログイン中のアカウント：') + loginName(u.email || S.auth.email);
   $('sName').value = u.name || '';
-  // マスター以外は、家庭情報に登録された親族（例：山口（父））から名前を選ぶ
+  // マスター以外は、家庭情報に登録された親族(例：山口(父))から名前を選ぶ
   const opts = isMaster() ? [] : nameOpts(), useSel = opts.length > 0;
   $('sName').classList.toggle('hidden', useSel);
   $('sNameSel').classList.toggle('hidden', !useSel);
@@ -1864,42 +1864,42 @@ function renderSettings(){
     const cur = opts.find(o => o.key === u.famRel);
     // 他のアカウントが選択済みの名前は選択肢に出さない
     const free = opts.filter(o => (cur && o.key === cur.key) || !S.users.some(x => x.id !== S.auth?.uid && x.famRel === o.key));
-    $('sNameSel').innerHTML = (cur ? '' : `<option value="">${u.name ? `${esc(u.name)}（現在の名前）` : '（選択してください）'}</option>`) + free.map(o =>
+    $('sNameSel').innerHTML = (cur ? '' : `<option value="">${u.name ? `${esc(u.name)}(現在の名前)` : '(選択してください)'}</option>`) + free.map(o =>
       `<option value="${esc(o.key)}" ${cur && o.key === cur.key ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
   }
   $('sNotify').checked = u.notify !== false;
   showFamLink();
-  // パスワードを忘れた場合：登録メールアドレスに再設定URLを送る（アカウント名だけの登録はメールを受け取れない）
+  // パスワードを忘れた場合：登録メールアドレスに再設定URLを送る(アカウント名だけの登録はメールを受け取れない)
   const mail = S.auth.email || '', canMail = mail.includes('@') && !mail.endsWith(LOGIN_DOMAIN);
-  $('rsHelp').textContent = canMail ? `登録したメールアドレス（${mail}）に、新しいパスワードを設定できるURLを送ります。`
-    : isMaster() ? 'マスターアカウントはメールを受け取れないため、Firebaseの管理画面でパスワードを再設定してください（README参照）。'
+  $('rsHelp').textContent = canMail ? `登録したメールアドレス(${mail})に、新しいパスワードを設定できるURLを送ります。`
+    : isMaster() ? 'マスターアカウントはメールを受け取れないため、Firebaseの管理画面でパスワードを再設定してください(README参照)。'
     : 'このアカウントはメールアドレスで登録されていないため、再設定メールを送れません。マスター権限の方に相談してください。';
   $('rsSend').classList.toggle('hidden', !canMail);
   $('rsMsg').textContent = '';
   $('sMsg').textContent = '';
 }
-// その子を選択している自分以外のアカウント（マスター承認で複数になることがある）
+// その子を選択している自分以外のアカウント(マスター承認で複数になることがある)
 const takenBy = kidId => S.users.filter(u => u.id !== S.auth?.uid && (u.childIds || []).includes(kidId));
 const coachTakenBy = cid => S.users.find(u => u.id !== S.auth?.uid && u.coachId === cid);
 $('view-settings').addEventListener('input', () => S.settingsDirty = true);
-// 名前の選択肢：家庭情報の親族（key は「家庭ID|続柄」）
+// 名前の選択肢：家庭情報の親族(key は「家庭ID|続柄」)
 const famKeyOf = (h, r) => r.rid ? `${h.id}_${r.rid}` : '';
 const nameOpts = () => households().flatMap(h => (h.relatives || []).map(r => ({key:`${h.id}|${r.rel}`, label:relLabel(h, r), h, r})));
-// 家庭情報から決まるアカウントの内容（立場・子供・続柄・指導者名簿の自分）
+// 家庭情報から決まるアカウントの内容(立場・子供・続柄・指導者名簿の自分)
 const famLink = o => {
   const coach = o.r.role === 'coach';
   return {name:o.label, famRel:o.key, famKey:famKeyOf(o.h, o.r), role:coach ? 'coach' : 'parent', relation:o.r.rel,
     childIds:famKids(o.h).map(k => k.id), pendingChildIds:[], coachId:coach ? relCoach(o.h.id, o.r.rid)?.id || '' : ''};
 };
-// 選んだ名前（未選択なら保存済みの名前）の家庭情報を表示
+// 選んだ名前(未選択なら保存済みの名前)の家庭情報を表示
 function showFamLink(){
   const key = $('sNameSel').classList.contains('hidden') ? me()?.famRel : $('sNameSel').value;
   const o = nameOpts().find(x => x.key === key);
   $('sAuto').classList.toggle('hidden', isMaster());
   if (!o) { $('sAuto').innerHTML = nameOpts().length ? '名前を選ぶと、家庭情報から立場・子供が自動で設定されます。' : '家庭情報がまだ登録されていません。マスター権限の方に登録を依頼してください。'; return; }
-  $('sAuto').innerHTML = `<b>家庭情報（${esc(o.h.surname)}家）から自動で設定されます</b>
+  $('sAuto').innerHTML = `<b>家庭情報(${esc(o.h.surname)}家)から自動で設定されます</b>
     <br>立場：${esc(roleText(o.r))}
-    <br>子供：${esc(famKids(o.h).map(k => `${k.name}（${gradeOf(k)}）`).join('・') || 'なし')}
+    <br>子供：${esc(famKids(o.h).map(k => `${k.name}(${gradeOf(k)})`).join('・') || 'なし')}
     <br>続柄：${esc(o.r.rel)}${(o.r.posts || []).length ? `<br>役職：${esc(o.r.posts.join('・'))}` : ''}`;
 }
 $('sNameSel').onchange = () => { S.settingsDirty = true; showFamLink(); };
@@ -1922,7 +1922,7 @@ $('sSave').onclick = async () => {
   $('sMsg').textContent = '保存しました';
   setTimeout(() => { $('sMsg').textContent = ''; $('sMsg').style.color = ''; }, 5000);
 };
-// マスターが家庭情報を変えたら、選択済みのアカウントの子供・立場なども合わせる（本人のログイン中に自動で更新）
+// マスターが家庭情報を変えたら、選択済みのアカウントの子供・立場なども合わせる(本人のログイン中に自動で更新)
 function syncFamLink(){
   const u = me();
   if (!u?.famRel || isMaster() || !S.loaded?.members || S.syncingFam) return;
@@ -1933,15 +1933,15 @@ function syncFamLink(){
   moveClaim(S.auth.uid, u.famKey || '', p.famKey).catch(() => {})
     .then(() => store.update('users', S.auth.uid, p)).catch(() => {}).finally(() => S.syncingFam = false);
 }
-// 使用中の名前（claims/{家庭ID_親族ID} = {uid}）。Firestoreのルールで、出欠を書き込める子ども・指導者の確認に使う
+// 使用中の名前(claims/{家庭ID_親族ID} = {uid})。Firestoreのルールで、出欠を書き込める子ども・指導者の確認に使う
 async function moveClaim(uid, from, to){
   if (from === to) return;
   if (to) await store.set('claims', to, {uid});   // 他の人が使用中ならルールで拒否される
   if (from) await store.remove('claims', from).catch(() => {});
 }
 // マスターの画面で、セキュリティ用のデータを最新に保つ
-//  ・家庭：親族ごとに出欠を書き込めるメンバー（子ども＋指導者名簿の本人）を links に保存
-//  ・アカウント：メールアドレスを private に移し、使用中の名前（claims）を合わせる
+//  ・家庭：親族ごとに出欠を書き込めるメンバー(子ども＋指導者名簿の本人)を links に保存
+//  ・アカウント：メールアドレスを private に移し、使用中の名前(claims)を合わせる
 const sortObj = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, [...(o[k] || [])].sort()]));
 function secureMigrate(){
   if (!isMaster() || S.migrating || Date.now() - (S.migratedAt || 0) < 15000) return;
@@ -1952,6 +1952,10 @@ function secureMigrate(){
       const relatives = (h.relatives || []).map(r => r.rid ? r : {...r, rid:newRid()});
       const links = Object.fromEntries(relatives.map(r => [r.rid,
         [...famKids(h).map(k => k.id), ...(r.role === 'coach' && relCoach(h.id, r.rid) ? [relCoach(h.id, r.rid).id] : [])]]));
+      for (const r of relatives.filter(r => r.role === 'coach')) {
+        const m = relCoach(h.id, r.rid);
+        if (m && m.name !== relLabel(h, r)) await store.update('members', m.id, {name:relLabel(h, r)});
+      }
       if (relatives.some((r, i) => r !== h.relatives[i]) || sortObj(links) !== sortObj(h.links)) await store.update('members', h.id, {relatives, links});
     }
     const priv = new Set(S.private.map(p => p.id)), keyOf = {};
@@ -1967,6 +1971,7 @@ function secureMigrate(){
       }
       const o = u.famRel && nameOpts().find(x => x.key === u.famRel), key = o ? famKeyOf(o.h, o.r) : '';
       if ((u.famKey || '') !== key) await store.update('users', u.id, {famKey:key});
+      if (o && u.name !== o.label) await store.update('users', u.id, {name:o.label});   // 表記の変更(全角→半角カッコなど)を反映
       if (key) keyOf[u.id] = key;
     }
     for (const c of S.claims) if (keyOf[c.uid] !== c.id) await store.remove('claims', c.id);
@@ -2023,14 +2028,14 @@ $('dSave').onclick = async () => {
   } finally { $('dSave').disabled = false; }
 };
 
-/* ---------- お知らせ（未回答の出欠） ---------- */
+/* ---------- お知らせ(未回答の出欠) ---------- */
 function renderBell(){
   const list = unanswered(), due = list.filter(x => x.due);
   const reqs = isMaster() ? requests() : [], link = needLink(), todo = dutyTodo();
   const n = list.length + reqs.length + (link ? 1 : 0) + todo.length;
   $('bellCount').textContent = n;
   $('bellCount').classList.toggle('hidden', !n);
-  // ログイン直後、締切（前日）を迎えた未回答・子供の未選択・承認待ちの申請があれば自動で表示＋ブラウザ通知
+  // ログイン直後、締切(前日)を迎えた未回答・子供の未選択・承認待ちの申請があれば自動で表示＋ブラウザ通知
   if (!S.noticeShown && S.members.length && me() && S.loaded?.events) {
     S.noticeShown = true;
     if (link || reqs.length || todo.length) openNotices();
@@ -2048,18 +2053,18 @@ function renderNotices(){
   $('modalBody').innerHTML = `<h3>🔔 お知らせ</h3>
     ${todo.map(k => `<div class="notice due" data-dmonth="${k}">🧺 <b>${+k.slice(5)}月の${DM().tab}が未入力です</b><br>
       <span class="meta">${DM().can}を選んで「決定」、ない場合は「${DM().ngLabel}」を押してください。</span></div>`).join('')}
-    ${noLink ? `<div class="banner">⚠ ${u.role==='coach'?'指導者名簿の自分':'自分の子供'}がまだ選択されていません。「アカウント設定」で選択してください（選択すると出欠を回答できます）。
+    ${noLink ? `<div class="banner">⚠ ${u.role==='coach'?'指導者名簿の自分':'自分の子供'}がまだ選択されていません。「アカウント設定」で選択してください(選択すると出欠を回答できます)。
       ${waiting ? '<br>※申請中の子供は、マスターの承認後に選択されます。' : ''}
       <div class="actions" style="margin-top:6px"><button class="primary" id="nSettings">アカウント設定を開く</button></div></div>` : ''}
-    ${reqs.length ? `<h4>子供の選択の承認待ち（${reqs.length}件）</h4>
+    ${reqs.length ? `<h4>子供の選択の承認待ち(${reqs.length}件)</h4>
       ${reqs.map(r => `<div class="notice" style="cursor:default">${esc(r.u.name)} さんが <b>${esc(r.k.name)}</b> を選択したいと申請しています
-        <span class="meta">（${esc(takenBy(r.k.id).filter(o => o.id !== r.u.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）</span>
+        <span class="meta">(${esc(takenBy(r.k.id).filter(o => o.id !== r.u.id).map(o => o.name).join('・') || 'なし')}さんが選択済み)</span>
         <div class="actions" style="margin-top:4px">${reqButtons(r)}</div></div>`).join('')}` : ''}
     ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length || todo.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
     ${list.map(({e, m, due}) => {
       const d = new Date(e.date + 'T00:00');
       return `<div class="notice ${due?'due':''}" data-date="${e.date}" data-mem="${m.id}">
-        ${due ? '<b style="color:var(--ng)">【締切】</b>' : ''}${d.getMonth()+1}/${d.getDate()}（${'日月火水木金土'[d.getDay()]}）${esc(e.start || '')}
+        ${due ? '<b style="color:var(--ng)">【締切】</b>' : ''}${d.getMonth()+1}/${d.getDate()}(${'日月火水木金土'[d.getDay()]})${esc(e.start || '')}
         <b>${esc(evLabel(e))}</b> — ${esc(m.name)} の出欠が未回答</div>`;
     }).join('')}
     <div class="actions">
@@ -2083,26 +2088,26 @@ $('bellBtn').onclick = openNotices;
 // 時間経過で「終了した予定」のグレー表示・お知らせを更新
 setInterval(() => { if (S.auth) render(); }, 5 * 60 * 1000);
 
-/* ---------- 家庭情報登録（マスターのみ） ---------- */
+/* ---------- 家庭情報登録(マスターのみ) ---------- */
 // 家庭は members に type:'family' で保存し、子供は familyId でその家庭に紐づける
 const RELS = ['母', '父', '祖母', '祖父', '叔母', '叔父', '兄', '姉'];
-// 親族の立場：保護者／監督／コーチ（監督・コーチは role:'coach' と position で保存）
+// 親族の立場：保護者／監督／コーチ(監督・コーチは role:'coach' と position で保存)
 const ROLE_OPTS = ['保護者', ...POSITIONS];
-// 親族の役職（複数選択可）
+// 親族の役職(複数選択可)
 const POSTS = ['部長', '副部長', '会計', 'SNS管理', '会長', '副会長'];
 const relText = r => [roleText(r), ...(r.posts || [])].join('・');
 const roleText = r => r.role === 'coach' ? (r.position || 'コーチ') : '保護者';
 const famKids = h => kids().filter(k => k.familyId === h.id);
-// 家庭の並び：一番上の子の学年順（6年が先）、次に苗字の五十音順（ふりがながあればそれで比較）
+// 家庭の並び：一番上の子の学年順(6年が先)、次に苗字の五十音順(ふりがながあればそれで比較)
 const famRank = h => Math.min(99, ...famKids(h).map(k => gradeRank(gradeOf(k))));
 const households = () => S.members.filter(m => m.type === 'family')
   .sort((a, b) => famRank(a) - famRank(b) || (a.kana || a.surname || '').localeCompare(b.kana || b.surname || '', 'ja'));
-// 家族（families() の1件）に対応する家庭情報
+// 家族(families() の1件)に対応する家庭情報
 const householdOf = f => { const ids = f.kids.map(k => k.familyId).filter(Boolean); return households().find(h => ids.includes(h.id)); };
-// 親族の表示名（例：山口（父））。アカウントの名前の選択肢・指導者名簿の名前に使う
-const relLabel = (h, r) => `${h.surname}（${r.rel}）`;
+// 親族の表示名(例：山口(父))。アカウントの名前の選択肢・指導者名簿の名前に使う
+const relLabel = (h, r) => `${h.surname}(${r.rel})`.replace(/（/g, '(').replace(/）/g, ')');
 const newRid = () => Math.random().toString(36).slice(2, 10);
-// 家庭情報の指導者を指導者名簿（members の type:'coach'）に反映した分
+// 家庭情報の指導者を指導者名簿(members の type:'coach')に反映した分
 const relCoach = (hid, rid) => S.members.find(m => m.type === 'coach' && m.familyId === hid && m.rid === rid);
 function renderFamilies(){
   const H = households(), editing = !!S.editFam;
@@ -2119,13 +2124,13 @@ function renderFamilies(){
       <button class="danger" data-rmloose="${m.id}">削除</button></li>`).join('')}</ul>` : '';
   document.querySelectorAll('[data-rmloose]').forEach(b => b.onclick = async () => {
     const m = S.members.find(x => x.id === b.dataset.rmloose);
-    if (!confirm(`${m.name} を削除しますか？（過去の出欠記録は表示されなくなります）`)) return;
+    if (!confirm(`${m.name} を削除しますか？(過去の出欠記録は表示されなくなります)`)) return;
     await store.remove('members', m.id);
     log(`${m.type === 'kid' ? '子供' : '指導者'}「${m.name}」を削除`);
   });
   $('famList').innerHTML = H.map(h => `<li style="flex-wrap:wrap"><span><b>${esc(h.surname)}家</b>
-      <br><span class="meta">子ども：${esc(famKids(h).map(k => `${k.name}（${k.gender || '男女未設定'}・${gradeOf(k) || '学年未設定'}）`).join('、') || 'なし')}</span>
-      <br><span class="meta">親族：${esc((h.relatives || []).map(r => `${r.rel}（${relText(r)}）`).join('、') || 'なし')}</span></span>
+      <br><span class="meta">子ども：${esc(famKids(h).map(k => `${k.name}(${k.gender || '男女未設定'}・${gradeOf(k) || '学年未設定'})`).join('、') || 'なし')}</span>
+      <br><span class="meta">親族：${esc((h.relatives || []).map(r => `${r.rel}(${relText(r)})`).join('、') || 'なし')}</span></span>
       <button data-efam="${h.id}">編集</button><button class="danger" data-rmfam="${h.id}">削除</button></li>`).join('')
     || '<li class="meta">まだ登録がありません</li>';
   document.querySelectorAll('[data-efam]').forEach(b => b.onclick = () => {
@@ -2156,7 +2161,7 @@ function renderFamEdit(){
   const famOfKid = k => households().find(h => h.id === k.familyId && h.id !== f.id);
   $('famEdit').innerHTML = `<h4>${f.id ? '家庭情報の編集' : '家庭の追加'}</h4>
     <label>苗字</label><input id="hfSurname" value="${esc(f.surname)}" placeholder="例：山田" style="max-width:240px">
-    <label>苗字のふりがな（並び順に使います）</label><input id="hfKana" value="${esc(f.kana || '')}" placeholder="例：やまだ" style="max-width:240px">
+    <label>苗字のふりがな(並び順に使います)</label><input id="hfKana" value="${esc(f.kana || '')}" placeholder="例：やまだ" style="max-width:240px">
     <label>子ども</label>
     ${f.kids.map((k, i) => `<div class="addrow hfKid" data-id="${k.id || ''}" style="margin-bottom:6px">
       <input class="hfkName" value="${esc(k.name)}" placeholder="名前">
@@ -2164,10 +2169,10 @@ function renderFamEdit(){
       <select class="hfkGrade" style="max-width:90px">${gradeOptions(k.grade)}</select>
       <button data-hfdel="kids|${i}">✕</button></div>`).join('') || '<div class="meta">まだいません</div>'}
     <div class="addrow"><button id="hfAddKid">＋ 子どもを追加</button>
-      <select id="hfPick" style="max-width:240px"><option value="">登録済みの子どもから追加</option>${kids().filter(k => !inList.includes(k.id)).map(k => `<option value="${k.id}">${esc(k.name)}（${esc(gradeOf(k) || '学年未設定')}）${famOfKid(k) ? `・${esc(famOfKid(k).surname)}家` : ''}</option>`).join('')}</select></div>
+      <select id="hfPick" style="max-width:240px"><option value="">登録済みの子どもから追加</option>${kids().filter(k => !inList.includes(k.id)).map(k => `<option value="${k.id}">${esc(k.name)}(${esc(gradeOf(k) || '学年未設定')})${famOfKid(k) ? `・${esc(famOfKid(k).surname)}家` : ''}</option>`).join('')}</select></div>
     <label>親族</label>
     ${f.relatives.map((r, i) => `<div class="addrow hfRel" data-rid="${r.rid}" style="margin-bottom:10px;flex-wrap:wrap">
-      <input class="hfrRel" list="hfRelList" value="${esc(r.rel)}" placeholder="続柄（例：母、祖母）">
+      <input class="hfrRel" list="hfRelList" value="${esc(r.rel)}" placeholder="続柄(例：母、祖母)">
       <select class="hfrRole" style="max-width:110px">${ROLE_OPTS.map(l => `<option ${roleText(r) === l ? 'selected' : ''}>${l}</option>`).join('')}</select>
       <button data-hfdel="relatives|${i}">✕</button>
       <div class="chips" style="flex-basis:100%"><span class="meta">役職：</span>${POSTS.map(p => `<label><input type="checkbox" class="hfrPost" value="${p}" ${(r.posts || []).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>`).join('') || '<div class="meta">まだいません</div>'}
@@ -2193,9 +2198,9 @@ async function saveFam(){
   if (!f.surname) return msg('苗字を入力してください');
   if (f.kids.some(k => !k.name || !k.gender || !k.grade)) return msg('子どもの名前・男女・学年をすべて入力してください');
   if (f.relatives.some(r => !r.rel)) return msg('親族の続柄を入力してください');
-  if (new Set(f.relatives.map(r => r.rel)).size < f.relatives.length) return msg('同じ続柄が重複しています（例：祖母が2人なら「祖母（父方）」のように区別してください）');
+  if (new Set(f.relatives.map(r => r.rel)).size < f.relatives.length) return msg('同じ続柄が重複しています(例：祖母が2人なら「祖母(父方)」のように区別してください)');
   const old = f.id ? kids().filter(k => k.familyId === f.id) : [], gone = old.filter(k => !f.kids.some(x => x.id === k.id));
-  if (gone.length && !confirm(`${gone.map(k => k.name).join('・')} をメンバーから削除します（過去の出欠記録は表示されなくなります）。よろしいですか？`)) return;
+  if (gone.length && !confirm(`${gone.map(k => k.name).join('・')} をメンバーから削除します(過去の出欠記録は表示されなくなります)。よろしいですか？`)) return;
   const data = {type:'family', name:f.surname + '家', surname:f.surname, kana:f.kana, relatives:f.relatives, ...stamp()};
   let id = f.id;
   if (id) await store.update('members', id, data); else id = (await store.add('members', data)).id;
@@ -2206,7 +2211,7 @@ async function saveFam(){
   }
   // 外した子はメンバーから削除
   for (const k of gone) await store.remove('members', k.id);
-  // 指導者の親族を指導者名簿に反映（指導者でなくなった・外した親族は名簿から削除）
+  // 指導者の親族を指導者名簿に反映(指導者でなくなった・外した親族は名簿から削除)
   for (const r of f.relatives.filter(r => r.role === 'coach')) {
     const patch = {name:relLabel(f, r), position:r.position}, m = relCoach(id, r.rid);
     if (!m) await store.add('members', {type:'coach', ...patch, familyId:id, rid:r.rid, ...stamp()});
@@ -2214,7 +2219,7 @@ async function saveFam(){
   }
   for (const m of S.members.filter(m => m.type === 'coach' && m.familyId === id && m.rid && !f.relatives.some(r => r.rid === m.rid && r.role === 'coach')))
     await store.remove('members', m.id);
-  log(`家庭情報「${f.surname}家」を${f.id ? '編集' : '登録'}（子ども：${f.kids.map(k => k.name).join('・') || 'なし'}／親族：${f.relatives.map(r => `${r.rel}（${relText(r)}）`).join('・') || 'なし'}）`);
+  log(`家庭情報「${f.surname}家」を${f.id ? '編集' : '登録'}(子ども：${f.kids.map(k => k.name).join('・') || 'なし'}／親族：${f.relatives.map(r => `${r.rel}(${relText(r)})`).join('・') || 'なし'})`);
   S.editFam = null; S.migratedAt = 0; renderFamilies();
 }
 $('famAdd').onclick = () => { S.editFam = {id:'', surname:'', kids:[], relatives:[{rid:newRid(), rel:'母', role:'parent'}, {rid:newRid(), rel:'父', role:'parent'}]}; renderFamilies(); };
