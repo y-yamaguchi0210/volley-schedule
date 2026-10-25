@@ -225,6 +225,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <h2 id="authTitle">ログイン</h2>
     <form id="authForm">
       <div id="signupFields" class="hidden">
+        <label>合言葉</label><input id="fJoin" autocomplete="off" placeholder="チームから案内された合言葉">
         <label>お名前（表示名）</label><input id="fName" placeholder="例：山田 花子">
         <label>立場</label>
         <select id="fRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
@@ -427,9 +428,12 @@ function firebaseStore(){
   const wrap = s => s.docs.map(d => ({id:d.id, ...d.data()}));
   return {
     onAuth: cb => auth.onAuthStateChanged(u => cb(u ? {uid:u.uid, email:u.email} : null)),
-    async signUp(email, pw, profile){
+    async signUp(email, pw, profile, joinKey){
       const c = await auth.createUserWithEmailAndPassword(email, pw);
-      await db.collection('users').doc(c.user.uid).set({...profile, email, createdAt: Date.now()});
+      // 合言葉はFirestoreのルールで確認（違えば作ったログイン情報を消す）。メールアドレスは本人とマスターだけが読める private に保存
+      try { await db.collection('private').doc(c.user.uid).set({email:c.user.email, joinKey}); }
+      catch (e) { await c.user.delete().catch(() => {}); throw {code:'join/denied'}; }
+      await db.collection('users').doc(c.user.uid).set({...profile, createdAt: Date.now()});
     },
     signIn: (email, pw) => auth.signInWithEmailAndPassword(email, pw),
     signOut: () => auth.signOut(),
@@ -442,15 +446,19 @@ function firebaseStore(){
     async deleteAccount(pw){
       const u = auth.currentUser;
       await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw));
+      const ud = (await db.collection('users').doc(u.uid).get()).data() || {};
+      if (ud.famKey) await db.collection('claims').doc(ud.famKey).delete().catch(() => {});
       await db.collection('users').doc(u.uid).delete();
+      await db.collection('private').doc(u.uid).delete().catch(() => {});
       await u.delete();
     },
     resetPassword(email){ auth.languageCode = 'ja'; return auth.sendPasswordResetEmail(email); },
-    subscribe(col, cb){
+    subscribe(col, cb, onErr){
       let q = db.collection(col);
       if (col === 'logs') q = q.orderBy('at','desc').limit(200);
-      return q.onSnapshot(s => cb(wrap(s)), e => { if (auth.currentUser) alert('読み込みエラー: ' + e.message); });
+      return q.onSnapshot(s => cb(wrap(s)), e => { if (!auth.currentUser) return; if (onErr) onErr(e); else alert('読み込みエラー: ' + e.message); });
     },
+    delField: (col, id, field) => db.collection(col).doc(id).update({[field]: firebase.firestore.FieldValue.delete()}),
     add: (col, data) => db.collection(col).add(data),
     update: (col, id, patch) => db.collection(col).doc(id).update(patch),
     remove: (col, id) => db.collection(col).doc(id).delete(),
@@ -508,6 +516,7 @@ function localStore(){
       if (Object.values(col('users')).some(u => u.email === email)) throw {code:'auth/email-already-in-use'};
       const id = uid();
       col('users')[id] = {...profile, email, password: pw, createdAt: Date.now()};
+      col('private')[id] = {email};
       save(); localStorage.setItem(SKEY, id); emit('users'); fireAuth();
     },
     async signIn(email, pw){
@@ -531,6 +540,7 @@ function localStore(){
       save(); emit(c);
     },
     async remove(c, id){ delete col(c)[id]; save(); emit(c); },
+    async delField(c, id, field){ const d = col(c)[id]; if (d) { delete d[field]; save(); emit(c); } },
     async putFile(file){
       const id = uid();
       col('fileChunks')[id] = {data: await toB64(file)};
@@ -543,7 +553,7 @@ function localStore(){
 }
 
 /* ================= 状態 ================= */
-const S = { auth:null, users:[], members:[], events:[], logs:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
+const S = { auth:null, users:[], members:[], events:[], logs:[], private:[], claims:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
 S.month.setDate(1);
 // 予定編集で選べる時間帯（先頭が新規追加時の初期値）
 const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00'], ['16:00', '18:00']];
@@ -726,6 +736,7 @@ const AUTH_ERR = {
   'auth/invalid-credential':'メールアドレスかパスワードが違います',
   'auth/wrong-password':'メールアドレスかパスワードが違います',
   'auth/user-not-found':'メールアドレスかパスワードが違います',
+  'join/denied':'合言葉が違います',
 };
 $('authForm').onsubmit = async e => {
   e.preventDefault();
@@ -737,8 +748,13 @@ $('authForm').onsubmit = async e => {
       const name = $('fName').value.trim();
       if (!name) { $('authErr').textContent = 'お名前を入力してください'; return; }
       if (!raw.includes('@')) { $('authErr').textContent = 'メールアドレスを入力してください'; return; }
-      await store.signUp(email, pw, {name, role:$('fRole').value, childIds:[], coachId:'', notify:true});
-      S.tab = 'settings';
+      const join = $('fJoin').value.trim();
+      if (!join) { $('authErr').textContent = '合言葉を入力してください'; return; }
+      // 登録が終わるまで（合言葉の確認が済むまで）データの読み込みを始めない
+      S.joining = true;
+      try { await store.signUp(email, pw, {name, role:$('fRole').value, childIds:[], coachId:'', notify:true}, join); }
+      finally { S.joining = false; handleAuth(S.lastAuth); }
+      S.tab = 'settings'; render();
     } else {
       await store.signIn(email, pw);
     }
@@ -746,11 +762,13 @@ $('authForm').onsubmit = async e => {
 };
 $('logoutBtn').onclick = () => { if (confirm('ログアウトしますか？')) store.signOut(); };
 
-store.onAuth(a => {
+store.onAuth(a => { S.lastAuth = a; if (!S.joining) handleAuth(a); });
+function handleAuth(a){
   S.auth = a;
   if (a && !S.unsubs) {
     // 更新履歴（logs）はマスターだけが読み込む（Firestoreのルールでもマスター以外は読めない）
-    S.unsubs = ['users', 'members', 'events', ...(isMaster() ? ['logs'] : [])].map(c => store.subscribe(c, rows => {
+    // マスターは private（メールアドレス）と claims（使用中の名前）も読み込む
+    S.unsubs = ['users', 'members', 'events', ...(isMaster() ? ['logs', 'private', 'claims'] : [])].map(c => store.subscribe(c, rows => {
       if (c === 'users') {
         // マスターが削除したアカウントは deleted フラグ付きで残る → 一覧から除外
         S.usersLoaded = true;
@@ -761,19 +779,29 @@ store.onAuth(a => {
       (S.loaded ||= {})[c] = true;
       if (kickIfDeleted()) return;
       ensureMasterProfile(); render();
-    }));
+    }, e => ['private', 'claims'].includes(c) || denied(e)));
   }
   if (!a && S.unsubs) {
     // ログアウト時は購読を解除（次のログインで購読し直す）
     S.unsubs.forEach(u => typeof u === 'function' && u());
     S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
-    S.users = S.members = S.events = S.logs = [];
+    S.users = S.members = S.events = S.logs = S.private = S.claims = [];
     S.dutyPick = null; S.attPick = null; S.attKid = ''; S.loaded = {};
   }
   if (kickIfDeleted()) return;
   ensureMasterProfile();
   render();
-});
+}
+// 読み込みを拒否された（合言葉の登録がない・削除済み）アカウントはログアウト
+function denied(e){
+  if (e?.code !== 'permission-denied') return alert('読み込みエラー: ' + (e?.message || e));
+  if (S.deniedOut) return;
+  S.deniedOut = true;
+  store.signOut().then(() => {
+    S.deniedOut = false; $('authErr').style.color = '';
+    $('authErr').textContent = 'このアカウントは現在利用できません（合言葉の登録が確認できないか、削除されたアカウントです）。マスター権限の方に連絡してください。';
+  });
+}
 // 削除済みアカウントでログインしていたら強制ログアウト
 function kickIfDeleted(){
   if (!S.auth || !(S.rawUsers || []).some(u => u.id === S.auth.uid && u.deleted)) return false;
@@ -793,6 +821,7 @@ const roleLabel = u => u?.email === MASTER_EMAIL || u?.role === 'master' ? 'マ�
 /* ================= 描画 ================= */
 function render(){
   syncFamLink();
+  secureMigrate();
   const inApp = !!S.auth;
   $('demoBanner').classList.toggle('hidden', USE_FIREBASE);
   $('auth').classList.toggle('hidden', inApp);
@@ -1766,7 +1795,7 @@ function renderMembers(){
     if (canEdit && S.editUser === u.id) return userEditLi(u);
     const delBtn = canEdit ? `<span style="white-space:nowrap"><button data-eduser="${u.id}">編集</button><button class="danger" data-rmuser="${u.id}">削除</button></span>` : '';
     const reqs = requests().filter(r => r.u.id === u.id);
-    return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}${canEdit && u.email ? `・${esc(loginName(u.email))}` : ''}</span></span>${delBtn}
+    return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}${canEdit && mailOf(u) ? `・${esc(loginName(mailOf(u)))}` : ''}</span></span>${delBtn}
       ${reqs.map(r => `<div style="width:100%" class="meta">⏳ ${esc(r.k.name)} の選択を申請中（${esc(takenBy(r.k.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）
         ${isMaster() ? reqButtons(r) : ''}</div>`).join('')}</li>`;
   }).join('');
@@ -1783,7 +1812,9 @@ function renderMembers(){
       if (!name) { $('euMsg').textContent = 'お名前を入力してください'; return; }
       const dup = o && S.users.find(x => x.id !== u.id && x.famRel === o.key);
       if (dup) { $('euMsg').textContent = `${o.label} は ${dup.name}さんが選択済みです`; return; }
-      const patch = {notify:$('euNotify').checked, ...(o ? famLink(o) : u.famRel ? {name, famRel:'', childIds:[], pendingChildIds:[], coachId:''} : {name})};
+      const patch = {notify:$('euNotify').checked, ...(o ? famLink(o) : u.famRel ? {name, famRel:'', famKey:'', childIds:[], pendingChildIds:[], coachId:''} : {name})};
+      try { await moveClaim(u.id, u.famKey || '', 'famKey' in patch ? patch.famKey : u.famKey || ''); }
+      catch { $('euMsg').textContent = `${name} は他のアカウントが選択済みです`; return; }
       await store.update('users', u.id, patch);
       log(`アカウント「${u.name}」を編集${u.name !== name ? `（→${name}）` : ''}`);
       S.editUser = null; renderMembers();
@@ -1793,7 +1824,10 @@ function renderMembers(){
   document.querySelectorAll('[data-rmuser]').forEach(b => b.onclick = async () => {
     const u = S.users.find(x => x.id === b.dataset.rmuser);
     if (!confirm(`${u.name} さんのアカウントを削除しますか？\n（このアカウントではログインできなくなります）`)) return;
-    await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:''});
+    await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:'', famRel:'', famKey:''});
+    // 使用中の名前とメールアドレス（private）も消す → このアカウントではデータを読めなくなる
+    if (u.famKey) await store.remove('claims', u.famKey).catch(() => {});
+    await store.remove('private', u.id).catch(() => {});
     log(`アカウント「${u.name}」を削除`);
   });
 }
@@ -1801,7 +1835,7 @@ function renderMembers(){
 function userEditLi(u){
   const free = nameOpts().filter(o => o.key === u.famRel || !S.users.some(x => x.id !== u.id && x.famRel === o.key));
   return `<li style="flex-wrap:wrap"><div style="width:100%">
-    <div class="meta">${esc(u.name)} さんのアカウント${u.email ? `（${esc(loginName(u.email))}）` : ''}を編集</div>
+    <div class="meta">${esc(u.name)} さんのアカウント${mailOf(u) ? `（${esc(loginName(mailOf(u)))}）` : ''}を編集</div>
     <label>お名前</label>
     <select id="euSel"><option value="">（家庭情報と紐付けない）</option>${free.map(o =>
       `<option value="${esc(o.key)}" ${o.key === u.famRel ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
@@ -1811,6 +1845,8 @@ function userEditLi(u){
     <div class="actions"><button class="primary" id="euSave">保存</button><button id="euCancel">キャンセル</button></div>
     <div id="euMsg" class="meta" style="color:var(--ng)"></div></div></li>`;
 }
+// アカウントのメールアドレス（マスターだけが読める private から）
+const mailOf = u => S.private.find(p => p.id === u.id)?.email || u.email;
 // 兄弟姉妹（同じ familyId を持つ子）
 const siblingsOf = m => m.familyId ? kids().filter(k => k.id !== m.id && k.familyId === m.familyId) : [];
 
@@ -1847,11 +1883,12 @@ const takenBy = kidId => S.users.filter(u => u.id !== S.auth?.uid && (u.childIds
 const coachTakenBy = cid => S.users.find(u => u.id !== S.auth?.uid && u.coachId === cid);
 $('view-settings').addEventListener('input', () => S.settingsDirty = true);
 // 名前の選択肢：家庭情報の親族（key は「家庭ID|続柄」）
+const famKeyOf = (h, r) => r.rid ? `${h.id}_${r.rid}` : '';
 const nameOpts = () => households().flatMap(h => (h.relatives || []).map(r => ({key:`${h.id}|${r.rel}`, label:relLabel(h, r), h, r})));
 // 家庭情報から決まるアカウントの内容（立場・子供・続柄・指導者名簿の自分）
 const famLink = o => {
   const coach = o.r.role === 'coach';
-  return {name:o.label, famRel:o.key, role:coach ? 'coach' : 'parent', relation:o.r.rel,
+  return {name:o.label, famRel:o.key, famKey:famKeyOf(o.h, o.r), role:coach ? 'coach' : 'parent', relation:o.r.rel,
     childIds:famKids(o.h).map(k => k.id), pendingChildIds:[], coachId:coach ? relCoach(o.h.id, o.r.rid)?.id || '' : ''};
 };
 // 選んだ名前（未選択なら保存済みの名前）の家庭情報を表示
@@ -1874,6 +1911,10 @@ $('sSave').onclick = async () => {
   const dupName = o && S.users.find(x => x.id !== S.auth.uid && x.famRel === o.key);
   if (dupName) { $('sMsg').textContent = `${o.label} は ${dupName.name}さんが選択済みです`; return; }
   const patch = isMaster() ? {name} : {notify:$('sNotify').checked, ...(o ? famLink(o) : {name})};
+  if (!isMaster() && o) {
+    try { await moveClaim(S.auth.uid, me()?.famKey || '', patch.famKey); }
+    catch { $('sMsg').textContent = `${o.label} は他のアカウントが選択済みです`; return; }
+  }
   await store.update('users', S.auth.uid, patch);
   log('アカウント設定を変更');
   S.settingsDirty = false;
@@ -1889,7 +1930,49 @@ function syncFamLink(){
   const p = famLink(o), diff = Object.keys(p).filter(k => JSON.stringify(u[k] ?? '') !== JSON.stringify(p[k]));
   if (!diff.length) return;
   S.syncingFam = true;
-  store.update('users', S.auth.uid, p).finally(() => S.syncingFam = false);
+  moveClaim(S.auth.uid, u.famKey || '', p.famKey).catch(() => {})
+    .then(() => store.update('users', S.auth.uid, p)).catch(() => {}).finally(() => S.syncingFam = false);
+}
+// 使用中の名前（claims/{家庭ID_親族ID} = {uid}）。Firestoreのルールで、出欠を書き込める子ども・指導者の確認に使う
+async function moveClaim(uid, from, to){
+  if (from === to) return;
+  if (to) await store.set('claims', to, {uid});   // 他の人が使用中ならルールで拒否される
+  if (from) await store.remove('claims', from).catch(() => {});
+}
+// マスターの画面で、セキュリティ用のデータを最新に保つ
+//  ・家庭：親族ごとに出欠を書き込めるメンバー（子ども＋指導者名簿の本人）を links に保存
+//  ・アカウント：メールアドレスを private に移し、使用中の名前（claims）を合わせる
+const sortObj = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, [...(o[k] || [])].sort()]));
+function secureMigrate(){
+  if (!isMaster() || S.migrating || Date.now() - (S.migratedAt || 0) < 15000) return;
+  if (!['users', 'members', 'private', 'claims'].every(c => S.loaded?.[c])) return;
+  S.migrating = true; S.migratedAt = Date.now();
+  (async () => {
+    for (const h of households()) {
+      const relatives = (h.relatives || []).map(r => r.rid ? r : {...r, rid:newRid()});
+      const links = Object.fromEntries(relatives.map(r => [r.rid,
+        [...famKids(h).map(k => k.id), ...(r.role === 'coach' && relCoach(h.id, r.rid) ? [relCoach(h.id, r.rid).id] : [])]]));
+      if (relatives.some((r, i) => r !== h.relatives[i]) || sortObj(links) !== sortObj(h.links)) await store.update('members', h.id, {relatives, links});
+    }
+    const priv = new Set(S.private.map(p => p.id)), keyOf = {};
+    for (const u of S.rawUsers.filter(u => roleLabel(u) !== 'マスター')) {
+      if (u.deleted) {
+        if (priv.has(u.id)) await store.remove('private', u.id);
+        if (u.email && USE_FIREBASE) await store.delField('users', u.id, 'email');
+        continue;
+      }
+      if (u.email && USE_FIREBASE) {
+        if (!priv.has(u.id)) await store.set('private', u.id, {email:u.email});
+        await store.delField('users', u.id, 'email');
+      }
+      const o = u.famRel && nameOpts().find(x => x.key === u.famRel), key = o ? famKeyOf(o.h, o.r) : '';
+      if ((u.famKey || '') !== key) await store.update('users', u.id, {famKey:key});
+      if (key) keyOf[u.id] = key;
+    }
+    for (const c of S.claims) if (keyOf[c.uid] !== c.id) await store.remove('claims', c.id);
+    const kept = new Set(S.claims.filter(c => keyOf[c.uid] === c.id).map(c => c.id));
+    for (const [uid, key] of Object.entries(keyOf)) if (!kept.has(key)) { kept.add(key); await store.set('claims', key, {uid}); }
+  })().catch(e => console.warn('secureMigrate', e)).finally(() => S.migrating = false);
 }
 
 $('rsSend').onclick = async () => {
@@ -2132,7 +2215,7 @@ async function saveFam(){
   for (const m of S.members.filter(m => m.type === 'coach' && m.familyId === id && m.rid && !f.relatives.some(r => r.rid === m.rid && r.role === 'coach')))
     await store.remove('members', m.id);
   log(`家庭情報「${f.surname}家」を${f.id ? '編集' : '登録'}（子ども：${f.kids.map(k => k.name).join('・') || 'なし'}／親族：${f.relatives.map(r => `${r.rel}（${relText(r)}）`).join('・') || 'なし'}）`);
-  S.editFam = null; renderFamilies();
+  S.editFam = null; S.migratedAt = 0; renderFamilies();
 }
 $('famAdd').onclick = () => { S.editFam = {id:'', surname:'', kids:[], relatives:[{rid:newRid(), rel:'母', role:'parent'}, {rid:newRid(), rel:'父', role:'parent'}]}; renderFamilies(); };
 
