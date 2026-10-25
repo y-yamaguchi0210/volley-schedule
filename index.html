@@ -231,7 +231,8 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
         <p class="meta">※登録後、「アカウント設定」で自分の名前を選んでください。</p>
       </div>
       <label id="fEmailLabel">メールアドレス（またはアカウント名）</label><input id="fEmail" type="text" required autocomplete="username">
-      <div id="passFields"><label>パスワード（6文字以上）</label><input id="fPass" type="password" required minlength="6" autocomplete="current-password"></div>
+      <div id="passFields"><label>パスワード（6文字以上）</label><input id="fPass" type="password" required minlength="6" autocomplete="current-password">
+        <div class="meta" id="forgotInline" style="margin-top:4px"><a href="#" id="forgot2">パスワードを忘れた場合はこちら</a></div></div>
       <p class="meta hidden" id="resetHelp">登録したメールアドレスを入力して「再設定メールを送る」を押すと、パスワード変更画面のURLがメールで届きます。</p>
       <div class="err" id="authErr"></div>
       <div class="actions"><button class="primary" type="submit" id="authSubmit">ログイン</button></div>
@@ -379,6 +380,12 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <label>新しいパスワード（確認）</label><input id="pNew2" type="password" autocomplete="new-password">
       <div class="err" id="pMsg"></div>
       <div class="actions"><button class="primary" id="pSave">パスワードを変更</button></div>
+      <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:10px">
+        <b>現在のパスワードを忘れた場合</b>
+        <p class="meta" id="rsHelp"></p>
+        <div class="err" id="rsMsg"></div>
+        <div class="actions"><button id="rsSend">再設定メールを送る</button></div>
+      </div>
     </div>
     <div class="card notMaster" style="max-width:560px;margin-top:16px">
       <h3>アカウントの削除</h3>
@@ -691,6 +698,8 @@ function renderAuth(){
   const go = (su, rs) => { signupMode = su; resetMode = rs; $('authErr').textContent = ''; $('authErr').style.color = ''; renderAuth(); };
   if ($('sw')) $('sw').onclick = () => go(!signupMode, false);
   if ($('forgot')) $('forgot').onclick = () => go(false, true);
+  $('forgotInline').classList.toggle('hidden', signupMode);
+  $('forgot2').onclick = ev => { ev.preventDefault(); go(false, true); };
   if ($('back')) $('back').onclick = () => go(false, false);
 }
 // パスワード再設定メールの送信
@@ -1789,6 +1798,13 @@ function renderSettings(){
   }
   $('sNotify').checked = u.notify !== false;
   showFamLink();
+  // パスワードを忘れた場合：登録メールアドレスに再設定URLを送る（アカウント名だけの登録はメールを受け取れない）
+  const mail = S.auth.email || '', canMail = mail.includes('@') && !mail.endsWith(LOGIN_DOMAIN);
+  $('rsHelp').textContent = canMail ? `登録したメールアドレス（${mail}）に、新しいパスワードを設定できるURLを送ります。`
+    : isMaster() ? 'マスターアカウントはメールを受け取れないため、Firebaseの管理画面でパスワードを再設定してください（README参照）。'
+    : 'このアカウントはメールアドレスで登録されていないため、再設定メールを送れません。マスター権限の方に相談してください。';
+  $('rsSend').classList.toggle('hidden', !canMail);
+  $('rsMsg').textContent = '';
   $('sMsg').textContent = '';
 }
 // その子を選択している自分以外のアカウント（マスター承認で複数になることがある）
@@ -1841,6 +1857,19 @@ function syncFamLink(){
   store.update('users', S.auth.uid, p).finally(() => S.syncingFam = false);
 }
 
+$('rsSend').onclick = async () => {
+  const mail = S.auth?.email, msg = $('rsMsg');
+  if (!mail || !confirm(`${mail} 宛にパスワード再設定用のURLを送信しますか？`)) return;
+  msg.style.color = '';
+  $('rsSend').disabled = true;
+  try {
+    await store.resetPassword(mail);
+    msg.style.color = 'var(--ok)';
+    msg.textContent = `${mail} 宛にパスワード再設定用のURLを送信しました。迷惑メールフォルダもご確認ください。`;
+  } catch (e) {
+    msg.textContent = e.code === 'demo' ? 'デモモードではメールを送信できません' : 'エラー: ' + (e.message || e.code);
+  } finally { $('rsSend').disabled = false; }
+};
 // パスワード変更
 $('pSave').onclick = async () => {
   const cur = $('pCur').value, next = $('pNew').value, msg = $('pMsg');
