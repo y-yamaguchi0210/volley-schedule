@@ -428,6 +428,7 @@ function firebaseStore(){
   const wrap = s => s.docs.map(d => ({id:d.id, ...d.data()}));
   return {
     onAuth: cb => auth.onAuthStateChanged(u => cb(u ? {uid:u.uid, email:u.email} : null)),
+    current: () => auth.currentUser ? {uid:auth.currentUser.uid, email:auth.currentUser.email} : null,
     async signUp(email, pw, profile, joinKey){
       let c;
       try { c = await auth.createUserWithEmailAndPassword(email, pw); }
@@ -436,16 +437,16 @@ function firebaseStore(){
         // マスターに削除されたアカウントは、ログイン情報が残っている → 同じパスワードなら作り直す
         try { c = await auth.signInWithEmailAndPassword(email, pw); } catch { throw {code:'signup/used'}; }
         const pv = await db.collection('private').doc(c.user.uid).get().catch(() => null);
-        if (pv?.exists) { await auth.signOut(); throw e; }   // 使用中のアカウント
+        if (pv?.exists) { await auth.signOut(); throw {code:'signup/active'}; }   // 使用中のアカウント
         try { await db.collection('private').doc(c.user.uid).set({email:c.user.email, joinKey}); }
-        catch { await auth.signOut(); throw {code:'join/denied'}; }
+        catch (e2) { console.warn('join', e2); await auth.signOut(); throw {code:'join/denied'}; }
         await db.collection('users').doc(c.user.uid).delete().catch(() => {});
         await db.collection('users').doc(c.user.uid).set({...profile, createdAt: Date.now()});
         return;
       }
       // 合言葉はFirestoreのルールで確認(違えば作ったログイン情報を消す)。メールアドレスは本人とマスターだけが読める private に保存
       try { await db.collection('private').doc(c.user.uid).set({email:c.user.email, joinKey}); }
-      catch (e) { await c.user.delete().catch(() => {}); throw {code:'join/denied'}; }
+      catch (e) { console.warn('join', e); await c.user.delete().catch(() => {}); throw {code:'join/denied'}; }
       await db.collection('users').doc(c.user.uid).set({...profile, createdAt: Date.now()});
     },
     signIn: (email, pw) => auth.signInWithEmailAndPassword(email, pw),
@@ -525,6 +526,7 @@ function localStore(){
       delete col('users')[id]; save(); localStorage.removeItem(SKEY); emit('users'); fireAuth();
     },
     onAuth(cb){ authSubs.push(cb); setTimeout(() => cb(session())); },
+    current: () => session(),
     async signUp(email, pw, profile){
       const old = Object.entries(col('users')).find(([, u]) => u.email === email);
       if (old && !old[1].deleted) throw {code:'auth/email-already-in-use'};
@@ -752,6 +754,7 @@ const AUTH_ERR = {
   'auth/wrong-password':'メールアドレスかパスワードが違います',
   'auth/user-not-found':'メールアドレスかパスワードが違います',
   'join/denied':'合言葉が違います',
+  'signup/active':'このメールアドレスは登録済みです。「ログイン」からログインしてください',
   'signup/used':'このメールアドレスは登録済みです。削除されたアカウントを作り直す場合は、以前のパスワードを入力してください(忘れた場合は「パスワードを忘れた方」から再設定してから登録してください)',
 };
 $('authForm').onsubmit = async e => {
@@ -764,12 +767,13 @@ $('authForm').onsubmit = async e => {
       const name = $('fName').value.trim();
       if (!name) { $('authErr').textContent = 'お名前を入力してください'; return; }
       if (!raw.includes('@')) { $('authErr').textContent = 'メールアドレスを入力してください'; return; }
-      const join = $('fJoin').value.trim();
+      const join = $('fJoin').value.trim().normalize('NFC');
       if (!join) { $('authErr').textContent = '合言葉を入力してください'; return; }
       // 登録が終わるまで(合言葉の確認が済むまで)データの読み込みを始めない
       S.joining = true;
       try { await store.signUp(email, pw, {name, role:$('fRole').value, childIds:[], coachId:'', notify:true}, join); }
-      finally { S.joining = false; handleAuth(S.lastAuth); }
+      // 登録に失敗してログアウトした場合に古いログイン状態で読み込まないよう、現在の状態を使う
+      finally { S.joining = false; handleAuth(store.current()); }
       S.tab = 'settings'; render();
     } else {
       await store.signIn(email, pw);
