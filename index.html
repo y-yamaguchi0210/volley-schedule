@@ -1862,7 +1862,7 @@ function showFamLink(){
   $('sAuto').innerHTML = `<b>家庭情報（${esc(o.h.surname)}家）から自動で設定されます</b>
     <br>立場：${esc(roleText(o.r))}
     <br>子供：${esc(famKids(o.h).map(k => `${k.name}（${gradeOf(k)}）`).join('・') || 'なし')}
-    <br>続柄：${esc(o.r.rel)}`;
+    <br>続柄：${esc(o.r.rel)}${(o.r.posts || []).length ? `<br>役職：${esc(o.r.posts.join('・'))}` : ''}`;
 }
 $('sNameSel').onchange = () => { S.settingsDirty = true; showFamLink(); };
 $('sSave').onclick = async () => {
@@ -1991,6 +1991,9 @@ setInterval(() => { if (S.auth) render(); }, 5 * 60 * 1000);
 const RELS = ['母', '父', '祖母', '祖父', '叔母', '叔父', '兄', '姉'];
 // 親族の立場：保護者／監督／コーチ（監督・コーチは role:'coach' と position で保存）
 const ROLE_OPTS = ['保護者', ...POSITIONS];
+// 親族の役職（複数選択可）
+const POSTS = ['部長', '副部長', '会計', 'SNS管理', '会長', '副会長'];
+const relText = r => [roleText(r), ...(r.posts || [])].join('・');
 const roleText = r => r.role === 'coach' ? (r.position || 'コーチ') : '保護者';
 const famKids = h => kids().filter(k => k.familyId === h.id);
 // 家庭の並び：一番上の子の学年順（6年が先）、次に苗字の五十音順（ふりがながあればそれで比較）
@@ -2013,7 +2016,7 @@ function renderFamilies(){
   $('famEdit').innerHTML = '';
   $('famList').innerHTML = H.map(h => `<li style="flex-wrap:wrap"><span><b>${esc(h.surname)}家</b>
       <br><span class="meta">子ども：${esc(famKids(h).map(k => `${k.name}（${k.gender || '男女未設定'}・${gradeOf(k) || '学年未設定'}）`).join('、') || 'なし')}</span>
-      <br><span class="meta">親族：${esc((h.relatives || []).map(r => `${r.rel}（${roleText(r)}）`).join('、') || 'なし')}</span></span>
+      <br><span class="meta">親族：${esc((h.relatives || []).map(r => `${r.rel}（${relText(r)}）`).join('、') || 'なし')}</span></span>
       <button data-efam="${h.id}">編集</button><button class="danger" data-rmfam="${h.id}">削除</button></li>`).join('')
     || '<li class="meta">まだ登録がありません</li>';
   document.querySelectorAll('[data-efam]').forEach(b => b.onclick = () => {
@@ -2034,7 +2037,7 @@ function readFam(){
   f.surname = $('hfSurname').value.trim();
   f.kana = $('hfKana').value.trim();
   f.kids = [...document.querySelectorAll('.hfKid')].map(r => ({id:r.dataset.id, name:r.querySelector('.hfkName').value.trim(), gender:r.querySelector('.hfkGender').value, grade:r.querySelector('.hfkGrade').value}));
-  f.relatives = [...document.querySelectorAll('.hfRel')].map(r => ({rid:r.dataset.rid, rel:r.querySelector('.hfrRel').value.trim(), ...(v => v === '保護者' ? {role:'parent'} : {role:'coach', position:v})(r.querySelector('.hfrRole').value)}));
+  f.relatives = [...document.querySelectorAll('.hfRel')].map(r => ({rid:r.dataset.rid, rel:r.querySelector('.hfrRel').value.trim(), posts:[...r.querySelectorAll('.hfrPost:checked')].map(c => c.value), ...(v => v === '保護者' ? {role:'parent'} : {role:'coach', position:v})(r.querySelector('.hfrRole').value)}));
   return f;
 }
 function renderFamEdit(){
@@ -2052,10 +2055,11 @@ function renderFamEdit(){
     <div class="addrow"><button id="hfAddKid">＋ 子どもを追加</button>
       <select id="hfPick" style="max-width:240px"><option value="">登録済みの子どもから追加</option>${kids().filter(k => !inList.includes(k.id)).map(k => `<option value="${k.id}">${esc(k.name)}（${esc(gradeOf(k) || '学年未設定')}）${famOfKid(k) ? `・${esc(famOfKid(k).surname)}家` : ''}</option>`).join('')}</select></div>
     <label>親族</label>
-    ${f.relatives.map((r, i) => `<div class="addrow hfRel" data-rid="${r.rid}" style="margin-bottom:6px">
+    ${f.relatives.map((r, i) => `<div class="addrow hfRel" data-rid="${r.rid}" style="margin-bottom:10px;flex-wrap:wrap">
       <input class="hfrRel" list="hfRelList" value="${esc(r.rel)}" placeholder="続柄（例：母、祖母）">
       <select class="hfrRole" style="max-width:110px">${ROLE_OPTS.map(l => `<option ${roleText(r) === l ? 'selected' : ''}>${l}</option>`).join('')}</select>
-      <button data-hfdel="relatives|${i}">✕</button></div>`).join('') || '<div class="meta">まだいません</div>'}
+      <button data-hfdel="relatives|${i}">✕</button>
+      <div class="chips" style="flex-basis:100%"><span class="meta">役職：</span>${POSTS.map(p => `<label><input type="checkbox" class="hfrPost" value="${p}" ${(r.posts || []).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>`).join('') || '<div class="meta">まだいません</div>'}
     <datalist id="hfRelList">${RELS.map(r => `<option value="${r}">`).join('')}</datalist>
     <div class="addrow"><button id="hfAddRel">＋ 親族を追加</button></div>
     <div class="err" id="hfMsg"></div>
@@ -2098,7 +2102,7 @@ async function saveFam(){
   }
   for (const m of S.members.filter(m => m.type === 'coach' && m.familyId === id && m.rid && !f.relatives.some(r => r.rid === m.rid && r.role === 'coach')))
     await store.remove('members', m.id);
-  log(`家庭情報「${f.surname}家」を${f.id ? '編集' : '登録'}（子ども：${f.kids.map(k => k.name).join('・') || 'なし'}／親族：${f.relatives.map(r => `${r.rel}（${roleText(r)}）`).join('・') || 'なし'}）`);
+  log(`家庭情報「${f.surname}家」を${f.id ? '編集' : '登録'}（子ども：${f.kids.map(k => k.name).join('・') || 'なし'}／親族：${f.relatives.map(r => `${r.rel}（${relText(r)}）`).join('・') || 'なし'}）`);
   S.editFam = null; renderFamilies();
 }
 $('famAdd').onclick = () => { S.editFam = {id:'', surname:'', kids:[], relatives:[{rid:newRid(), rel:'母', role:'parent'}, {rid:newRid(), rel:'父', role:'parent'}]}; renderFamilies(); };
