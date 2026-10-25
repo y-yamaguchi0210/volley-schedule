@@ -429,7 +429,20 @@ function firebaseStore(){
   return {
     onAuth: cb => auth.onAuthStateChanged(u => cb(u ? {uid:u.uid, email:u.email} : null)),
     async signUp(email, pw, profile, joinKey){
-      const c = await auth.createUserWithEmailAndPassword(email, pw);
+      let c;
+      try { c = await auth.createUserWithEmailAndPassword(email, pw); }
+      catch (e) {
+        if (e.code !== 'auth/email-already-in-use') throw e;
+        // マスターに削除されたアカウントは、ログイン情報が残っている → 同じパスワードなら作り直す
+        try { c = await auth.signInWithEmailAndPassword(email, pw); } catch { throw {code:'signup/used'}; }
+        const pv = await db.collection('private').doc(c.user.uid).get().catch(() => null);
+        if (pv?.exists) { await auth.signOut(); throw e; }   // 使用中のアカウント
+        try { await db.collection('private').doc(c.user.uid).set({email:c.user.email, joinKey}); }
+        catch { await auth.signOut(); throw {code:'join/denied'}; }
+        await db.collection('users').doc(c.user.uid).delete().catch(() => {});
+        await db.collection('users').doc(c.user.uid).set({...profile, createdAt: Date.now()});
+        return;
+      }
       // 合言葉はFirestoreのルールで確認(違えば作ったログイン情報を消す)。メールアドレスは本人とマスターだけが読める private に保存
       try { await db.collection('private').doc(c.user.uid).set({email:c.user.email, joinKey}); }
       catch (e) { await c.user.delete().catch(() => {}); throw {code:'join/denied'}; }
@@ -513,8 +526,10 @@ function localStore(){
     },
     onAuth(cb){ authSubs.push(cb); setTimeout(() => cb(session())); },
     async signUp(email, pw, profile){
-      if (Object.values(col('users')).some(u => u.email === email)) throw {code:'auth/email-already-in-use'};
-      const id = uid();
+      const old = Object.entries(col('users')).find(([, u]) => u.email === email);
+      if (old && !old[1].deleted) throw {code:'auth/email-already-in-use'};
+      if (old && old[1].password !== pw) throw {code:'signup/used'};
+      const id = old ? old[0] : uid();
       col('users')[id] = {...profile, email, password: pw, createdAt: Date.now()};
       col('private')[id] = {email};
       save(); localStorage.setItem(SKEY, id); emit('users'); fireAuth();
@@ -737,6 +752,7 @@ const AUTH_ERR = {
   'auth/wrong-password':'メールアドレスかパスワードが違います',
   'auth/user-not-found':'メールアドレスかパスワードが違います',
   'join/denied':'合言葉が違います',
+  'signup/used':'このメールアドレスは登録済みです。削除されたアカウントを作り直す場合は、以前のパスワードを入力してください(忘れた場合は「パスワードを忘れた方」から再設定してから登録してください)',
 };
 $('authForm').onsubmit = async e => {
   e.preventDefault();
@@ -1823,7 +1839,7 @@ function renderMembers(){
   // マスターによるアカウント削除(ログインできないよう deleted フラグを付け、子供の選択を解除)
   document.querySelectorAll('[data-rmuser]').forEach(b => b.onclick = async () => {
     const u = S.users.find(x => x.id === b.dataset.rmuser);
-    if (!confirm(`${u.name} さんのアカウントを削除しますか？\n(このアカウントではログインできなくなります)`)) return;
+    if (!confirm(`${u.name} さんのアカウントを削除しますか？\n(このアカウントではログインできなくなります。同じメールアドレスと以前のパスワードで登録し直すことはできます)`)) return;
     await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:'', famRel:'', famKey:''});
     // 使用中の名前とメールアドレス(private)も消す → このアカウントではデータを読めなくなる
     if (u.famKey) await store.remove('claims', u.famKey).catch(() => {});
