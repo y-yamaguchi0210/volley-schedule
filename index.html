@@ -228,7 +228,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
         <label>お名前（表示名）</label><input id="fName" placeholder="例：山田 花子">
         <label>立場</label>
         <select id="fRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
-        <p class="meta">※登録後、「アカウント設定」でお子さんを選んでください。</p>
+        <p class="meta">※登録後、「アカウント設定」で自分の名前を選んでください。</p>
       </div>
       <label id="fEmailLabel">メールアドレス（またはアカウント名）</label><input id="fEmail" type="text" required autocomplete="username">
       <div id="passFields"><label>パスワード（6文字以上）</label><input id="fPass" type="password" required minlength="6" autocomplete="current-password"></div>
@@ -366,21 +366,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <label>お名前（表示名）</label><input id="sName"><select id="sNameSel" class="hidden"></select>
       <div class="meta hidden" id="sNameNote">「家庭情報登録」に登録された名前から選びます。一覧にない場合は、マスター権限の方に登録を依頼してください。</div>
       <div class="notMaster">
-        <label>立場</label>
-        <select id="sRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
-        <div id="sKidBox">
-          <label>自分の子供（複数選択できます）</label>
-          <div class="chips" id="sKids"></div>
-          <div id="sRelBox">
-            <label>子供との続柄</label>
-            <select id="sRel"><option value="">（選択してください）</option><option value="母">母</option><option value="父">父</option></select>
-          </div>
-          <div class="meta">一覧にいない場合は、マスター権限の方に登録を依頼してください。</div>
-        </div>
-        <div id="sCoachBox">
-          <label>指導者名簿の中の自分</label>
-          <select id="sCoach"></select>
-        </div>
+        <div id="sAuto" class="banner" style="margin-top:10px"></div>
         <label><input type="checkbox" id="sNotify" style="width:auto"> 未回答の出欠があるとき、前日にメールでお知らせを受け取る</label>
       </div>
       <div class="err" id="sMsg"></div>
@@ -797,6 +783,7 @@ const roleLabel = u => u?.email === MASTER_EMAIL || u?.role === 'master' ? 'マ�
 
 /* ================= 描画 ================= */
 function render(){
+  syncFamLink();
   const inApp = !!S.auth;
   $('demoBanner').classList.toggle('hidden', USE_FIREBASE);
   $('auth').classList.toggle('hidden', inApp);
@@ -861,7 +848,7 @@ function renderCal(){
   const link = needLink();
   $('linkBanner').classList.toggle('hidden', !link);
   if (link) {
-    $('linkBanner').innerHTML = `⚠ ${me().role === 'coach' ? '指導者名簿の自分' : '自分の子供'}がまだ選択されていません。<a href="#" id="goSettings">アカウント設定</a>で選択してください。${(me().pendingChildIds || []).length ? '（申請中の子供はマスターの承認待ちです）' : ''}`;
+    $('linkBanner').innerHTML = `⚠ 自分の名前がまだ選択されていません。<a href="#" id="goSettings">アカウント設定</a>で選択してください。`;
     $('goSettings').onclick = ev => { ev.preventDefault(); S.tab = 'settings'; S.settingsDirty = false; render(); };
   }
   renderDelBar();
@@ -1235,7 +1222,7 @@ function renderAtt(){
     ? `<span class="meta">出欠を入力する子供</span> <select id="attKid" style="max-width:260px">${ks.map(k => `<option value="${k.id}" ${k.id === kid ? 'selected' : ''}>${kname(k)}</option>`).join('')}</select>`
     : `${ks.length > 1 ? '<div class="meta" style="margin-bottom:4px">お子さんを切り替えて、1人ずつ回答してください</div>' : ''}
       <div class="kidsw">${ks.map(k => `<button data-attkid="${k.id}" class="${k.id === kid ? 'on' : ''}">${kname(k)}${todo(k) ? ` <span class="badge">${todo(k)}</span>` : ''}</button>`).join('')}</div>
-      ${sibs.length ? `<div class="meta" style="margin-top:6px">兄弟姉妹の ${esc(sibs.map(k => k.name).join('・'))} も入力するには、<a href="#" id="attGoSettings">アカウント設定</a>で選択してください。</div>` : ''}`;
+      ${sibs.length ? `<div class="meta" style="margin-top:6px">兄弟姉妹の ${esc(sibs.map(k => k.name).join('・'))} も入力するには、マスター権限の方に家庭情報への登録を依頼してください。</div>` : ''}`;
   const pickKid = id => {
     if (id === S.attKid) return;
     if (!leaveAttOk()) { render(); return; }
@@ -1850,87 +1837,59 @@ function renderSettings(){
       return `<option value="${esc(o.key)}" ${cur && o.key === cur.key ? 'selected' : ''} ${owner ? 'disabled' : ''}>${esc(o.label)}${owner ? ` … ${esc(owner.name)}さんが選択済み` : ''}</option>`;
     }).join('');
   }
-  $('sRel').innerHTML = '<option value="">（選択してください）</option>' + [...new Set([...RELS, u.relation].filter(Boolean))].map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('');
-  $('sRole').value = u.role || 'parent';
   $('sNotify').checked = u.notify !== false;
-  const sel = u.childIds || [], pend = u.pendingChildIds || [];
-  // 他のアカウントが選択済みの子は、マスターの承認後に選択される（承認待ちとして保存）
-  $('sKids').innerHTML = kids().map(k => {
-    const owners = takenBy(k.id), mine = sel.includes(k.id), wait = !mine && pend.includes(k.id);
-    const note = wait ? '承認待ち' : !mine && owners.length ? `${owners.map(o => o.name).join('・')}さんが選択済み（選ぶとマスターに承認を申請）` : '';
-    return `<label class="${note?'taken':''}"><input type="checkbox" class="sKidChk" value="${k.id}" ${mine||wait?'checked':''}>${esc(k.name)}（${esc(gradeOf(k))}）${note ? `<span class="meta">… ${esc(note)}</span>` : ''}</label>`;
-  }).join('')
-    || '<span class="meta">子供がまだ登録されていません。</span>';
-  $('sCoach').innerHTML = '<option value="">（選択してください）</option>' + coaches().map(c => {
-    const owner = coachTakenBy(c.id);
-    return `<option value="${c.id}" ${u.coachId===c.id?'selected':''} ${owner?'disabled':''}>${esc(c.name)}${c.position ? `（${esc(c.position)}）` : ''}${owner ? ` … ${esc(owner.name)}さんが選択済み` : ''}</option>`;
-  }).join('');
-  $('sRel').value = u.relation || '';
-  toggleRoleBoxes();
+  showFamLink();
   $('sMsg').textContent = '';
 }
-function toggleRoleBoxes(){
-  const coach = $('sRole').value === 'coach';
-  $('sKidBox').classList.toggle('hidden', coach);
-  $('sCoachBox').classList.toggle('hidden', !coach);
-  toggleRelBox();
-}
-// 子供にチェックが入っているときだけ、母・父の選択を表示
-const toggleRelBox = () => $('sRelBox').classList.toggle('hidden', !document.querySelector('.sKidChk:checked'));
-$('sKids').addEventListener('change', toggleRelBox);
 // その子を選択している自分以外のアカウント（マスター承認で複数になることがある）
 const takenBy = kidId => S.users.filter(u => u.id !== S.auth?.uid && (u.childIds || []).includes(kidId));
 const coachTakenBy = cid => S.users.find(u => u.id !== S.auth?.uid && u.coachId === cid);
 $('view-settings').addEventListener('input', () => S.settingsDirty = true);
-$('sRole').onchange = () => { S.settingsDirty = true; toggleRoleBoxes(); };
 // 名前の選択肢：家庭情報の親族（key は「家庭ID|続柄」）
 const nameOpts = () => households().flatMap(h => (h.relatives || []).map(r => ({key:`${h.id}|${r.rel}`, label:relLabel(h, r), h, r})));
-// 名前を選んだら、立場・子供・続柄・指導者名簿を家庭情報に合わせる（あとから変更も可）
-$('sNameSel').onchange = () => {
-  S.settingsDirty = true;
-  const o = nameOpts().find(x => x.key === $('sNameSel').value); if (!o) return;
+// 家庭情報から決まるアカウントの内容（立場・子供・続柄・指導者名簿の自分）
+const famLink = o => {
   const coach = o.r.role === 'coach';
-  $('sRole').value = coach ? 'coach' : 'parent';
-  if (coach) { const c = relCoach(o.h.id, o.r.rid); if (c && !coachTakenBy(c.id)) $('sCoach').value = c.id; }
-  else {
-    const ks = famKids(o.h).map(k => k.id);
-    document.querySelectorAll('.sKidChk').forEach(c => c.checked = ks.includes(c.value));
-    if (ks.length) $('sRel').value = o.r.rel;
-  }
-  toggleRoleBoxes();
+  return {name:o.label, famRel:o.key, role:coach ? 'coach' : 'parent', relation:o.r.rel,
+    childIds:famKids(o.h).map(k => k.id), pendingChildIds:[], coachId:coach ? relCoach(o.h.id, o.r.rid)?.id || '' : ''};
 };
+// 選んだ名前（未選択なら保存済みの名前）の家庭情報を表示
+function showFamLink(){
+  const key = $('sNameSel').classList.contains('hidden') ? me()?.famRel : $('sNameSel').value;
+  const o = nameOpts().find(x => x.key === key);
+  $('sAuto').classList.toggle('hidden', isMaster());
+  if (!o) { $('sAuto').innerHTML = nameOpts().length ? '名前を選ぶと、家庭情報から立場・子供が自動で設定されます。' : '家庭情報がまだ登録されていません。マスター権限の方に登録を依頼してください。'; return; }
+  $('sAuto').innerHTML = `<b>家庭情報（${esc(o.h.surname)}家）から自動で設定されます</b>
+    <br>立場：${esc(roleText(o.r))}
+    <br>子供：${esc(famKids(o.h).map(k => `${k.name}（${gradeOf(k)}）`).join('・') || 'なし')}
+    <br>続柄：${esc(o.r.rel)}`;
+}
+$('sNameSel').onchange = () => { S.settingsDirty = true; showFamLink(); };
 $('sSave').onclick = async () => {
   const useSel = !$('sNameSel').classList.contains('hidden'), o = useSel && nameOpts().find(x => x.key === $('sNameSel').value);
   const name = o ? o.label : useSel ? (me()?.name || '') : $('sName').value.trim();
   if (!name) { $('sMsg').textContent = useSel ? 'お名前を選択してください' : 'お名前を入力してください'; return; }
+  if (useSel && !o) { $('sMsg').textContent = 'お名前を選択してください'; return; }
   const dupName = o && S.users.find(x => x.id !== S.auth.uid && x.famRel === o.key);
   if (dupName) { $('sMsg').textContent = `${o.label} は ${dupName.name}さんが選択済みです`; return; }
-  const role = $('sRole').value, u = me();
-  // 他のアカウントが選択済みの子は承認待ちに回す（承認済みの子はそのまま）
-  const checked = role === 'parent' ? [...document.querySelectorAll('.sKidChk:checked')].map(c => c.value) : [];
-  const owned = id => (u?.childIds || []).includes(id) || !takenBy(id).length;
-  if (!isMaster() && checked.length && !$('sRel').value) { $('sMsg').textContent = '子供との続柄を選択してください'; return; }
-  const patch = isMaster() ? {name} : {
-    name, role, notify:$('sNotify').checked, ...(o ? {famRel:o.key} : {}),
-    relation: checked.length ? $('sRel').value : '',
-    childIds: checked.filter(owned),
-    pendingChildIds: checked.filter(id => !owned(id)),
-    coachId: role === 'coach' ? $('sCoach').value : '',
-  };
-  // 保存直前にも、他の人が先に指導者名簿の自分を選択していないか確認
-  const dupCoach = patch.coachId && coachTakenBy(patch.coachId);
-  if (dupCoach) {
-    $('sMsg').textContent = `${S.members.find(m => m.id === patch.coachId)?.name} は ${dupCoach.name}さんが選択済みです`;
-    S.settingsDirty = false; renderSettings(); return;
-  }
-  const newReq = (patch.pendingChildIds || []).filter(id => !(u?.pendingChildIds || []).includes(id));
+  const patch = isMaster() ? {name} : {notify:$('sNotify').checked, ...(o ? famLink(o) : {name})};
   await store.update('users', S.auth.uid, patch);
-  log('アカウント設定を変更' + (newReq.length ? `（${newReq.map(id => S.members.find(m => m.id === id)?.name).join('・')} の選択をマスターに申請）` : ''));
+  log('アカウント設定を変更');
   S.settingsDirty = false;
   $('sMsg').style.color = 'var(--ok)';
-  $('sMsg').textContent = (patch.pendingChildIds || []).length ? '保存しました。他のアカウントが選択済みの子供は、マスターの承認後に選択されます。' : '保存しました';
+  $('sMsg').textContent = '保存しました';
   setTimeout(() => { $('sMsg').textContent = ''; $('sMsg').style.color = ''; }, 5000);
 };
+// マスターが家庭情報を変えたら、選択済みのアカウントの子供・立場なども合わせる（本人のログイン中に自動で更新）
+function syncFamLink(){
+  const u = me();
+  if (!u?.famRel || isMaster() || !S.loaded?.members || S.syncingFam) return;
+  const o = nameOpts().find(x => x.key === u.famRel); if (!o) return;
+  const p = famLink(o), diff = Object.keys(p).filter(k => JSON.stringify(u[k] ?? '') !== JSON.stringify(p[k]));
+  if (!diff.length) return;
+  S.syncingFam = true;
+  store.update('users', S.auth.uid, p).finally(() => S.syncingFam = false);
+}
 
 // パスワード変更
 $('pSave').onclick = async () => {
