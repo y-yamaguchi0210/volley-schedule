@@ -1130,6 +1130,7 @@ function renderDay(date){
           ${isCoachEv(e) ? '' : `<h4>指導者の出欠(○ ${countAtt(e, coaches())})</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}`}` : ''}
         ${hasEscort(e) ? escortTable(e) : ''}
         ${isMaster() ? `<div class="actions"><button data-copy="${e.id}">📋 コピー</button><button data-edit="${e.id}">予定を編集</button><button class="danger" data-del="${e.id}">削除</button></div>` : ''}
+        ${isMaster() && hasEscort(e) ? escortSummary(e) : ''}
       </div>`;
     }).join('')}
     <div class="actions">
@@ -1148,6 +1149,11 @@ function renderDay(date){
     await store.remove('events', e.id);
     cleanupFiles(e.attachments || [], [e.id]);
     log(`${e.date} の予定「${evLabel(e)}」を削除`);
+  });
+  // 子どもの出欠・引率車出しの集計表(マスター)を開く／閉じる
+  $('modalBody').querySelectorAll('[data-sum]').forEach(b => b.onclick = () => {
+    const id = b.dataset.sum; S.sumOpen ||= new Set();
+    S.sumOpen.has(id) ? S.sumOpen.delete(id) : S.sumOpen.add(id); renderDay(date);
   });
   $('modalBody').querySelectorAll('[data-goatt]').forEach(b => b.onclick = () => goAtt(b.dataset.goatt));
   $('modalBody').querySelectorAll('[data-file]').forEach(b => b.onclick = () => {
@@ -1232,6 +1238,32 @@ function escortTable(e){
         <div class="meta">${cur.at ? `${esc(cur.byName)} ${fmtAt(cur.at)}` : '未回答'}</div>
       </div>`;
     }).join('')}`;
+}
+
+// 子どもの出欠と引率・車出しを家庭ごとに一覧にした集計表(マスターのみ)
+function escortSummary(e){
+  const open = S.sumOpen?.has(e.id);
+  const btn = `<div class="actions" style="justify-content:flex-start"><button data-sum="${e.id}">📊 子どもの出欠・引率車出しの集計${open ? 'を閉じる' : ''}</button></div>`;
+  if (!open) return btn;
+  const fams = families(), es = e.escort || {}, att = e.attendance || {};
+  if (!fams.length) return btn + '<div class="meta">子どもが登録されていません。</div>';
+  const mark = v => v ? ATT[v] : '未', tot = {o:0, m:0, x:0, n:0, adults:0, cars:0, seats:0};
+  const rows = fams.map(f => {
+    const cur = es[f.key] || {}, opts = escortOpts(f), h = householdOf(f);
+    f.kids.forEach(k => tot[att[k.id]?.v || 'n']++);
+    const who = [...(cur.who || []).filter(w => opts.includes(w)), ...escortOther(cur, opts)];
+    tot.adults += who.length;
+    if (cur.car === 'yes') { tot.cars++; tot.seats += cur.seats || 0; }
+    return `<tr><td>${esc(h ? h.surname + '家' : famName(f))}</td>
+      <td style="text-align:left">${f.kids.map(k => `${esc(k.name)} <b>${mark(att[k.id]?.v)}</b>`).join('<br>')}</td>
+      <td>${esc(who.join('・')) || (cur.at ? 'なし' : '<span class="meta">未回答</span>')}</td>
+      <td>${cur.car === 'yes' ? '出せる' : cur.car === 'no' ? '出せない' : '<span class="meta">未回答</span>'}</td>
+      <td>${cur.car === 'yes' ? (cur.seats || 0) + '人' : ''}</td></tr>`;
+  }).join('');
+  return btn + `<div class="dcWrap"><table class="dcTbl">
+    <tr><th>家庭</th><th>子どもの出欠</th><th>引率</th><th>車出し</th><th>乗車可</th></tr>${rows}
+    <tr class="sum"><td>合計</td><td style="text-align:left">○${tot.o} △${tot.m} ×${tot.x} 未${tot.n}</td><td>大人${tot.adults}人</td><td>${tot.cars}台</td><td>${tot.seats}人</td></tr></table></div>
+    <div class="meta">出席の子ども ${tot.o}人に対し乗車可 ${tot.seats}人${tot.seats < tot.o ? ` <b style="color:var(--ng)">あと${tot.o - tot.seats}人分足りません</b>` : ''}</div>`;
 }
 
 /* ---------- 出欠確認(子供の出欠をカレンダーで入力) ---------- */
