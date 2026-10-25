@@ -244,9 +244,6 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     <form id="authForm">
       <div id="signupFields" class="hidden">
         <label>合言葉</label><input id="fJoin" autocomplete="off" placeholder="チームから案内された合言葉">
-        <label>お名前(表示名)</label><input id="fName" placeholder="例：山田 花子">
-        <label>立場</label>
-        <select id="fRole"><option value="parent">保護者</option><option value="coach">指導者</option></select>
         <p class="meta">※登録後、「アカウント設定」で自分の名前を選んでください。</p>
       </div>
       <label id="fEmailLabel">メールアドレス(またはアカウント名)</label><input id="fEmail" type="text" required autocomplete="username">
@@ -801,14 +798,12 @@ $('authForm').onsubmit = async e => {
   $('authErr').textContent = '';
   try {
     if (signupMode) {
-      const name = $('fName').value.trim();
-      if (!name) { $('authErr').textContent = 'お名前を入力してください'; return; }
       if (!raw.includes('@')) { $('authErr').textContent = 'メールアドレスを入力してください'; return; }
       const join = $('fJoin').value.trim().normalize('NFC');
       if (!join) { $('authErr').textContent = '合言葉を入力してください'; return; }
       // 登録が終わるまで(合言葉の確認が済むまで)データの読み込みを始めない
       S.joining = true;
-      try { await store.signUp(email, pw, {name, role:$('fRole').value, childIds:[], coachId:'', notify:true}, join); }
+      try { await store.signUp(email, pw, {name:'名前未設定', role:'parent', childIds:[], coachId:'', notify:true}, join); }
       // 登録に失敗してログアウトした場合に古いログイン状態で読み込まないよう、現在の状態を使う
       finally { S.joining = false; handleAuth(store.current()); }
       S.tab = 'settings'; render();
