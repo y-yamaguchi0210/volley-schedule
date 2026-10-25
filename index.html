@@ -113,6 +113,23 @@ table.att td.who{font-size:11px;color:var(--muted);text-align:right}
 .chips label.taken{color:var(--muted);background:#f1f2f4}
 .seg button.on.x{background:var(--ng);color:#fff}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
+/* 当番回数管理 */
+.dcBar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 12px}
+.seg button.on.pick{background:var(--accent);color:#fff}
+.dcWrap{overflow-x:auto}
+.dcTbl{border-collapse:collapse;font-size:13px;white-space:nowrap}
+.dcTbl th,.dcTbl td{border:1px solid var(--line);padding:4px 8px;text-align:center}
+.dcTbl th:first-child,.dcTbl td:first-child{text-align:left;position:sticky;left:0;background:var(--card)}
+.dcTbl td.z{color:#c4c8cf}
+.dcTbl tr.sum td{font-weight:600;background:#f7f8fa}
+.dcTbl th.sun{color:var(--ng)} .dcTbl th.sat{color:var(--accent)}
+.dcRow{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+.dcRow .nm{width:6.5em;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dcRow .bar{flex:1;display:flex;height:20px;background:#f1f2f4;border-radius:4px;overflow:hidden;min-width:0}
+.dcRow .bar span{height:100%;border-right:1px solid #fff}
+.dcRow .n{width:2.5em;flex:none;text-align:right;font-weight:600}
+.dcLeg{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.dcLeg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:3px;vertical-align:-1px}
 .chips label{display:inline-flex;align-items:center;gap:4px;margin:0;border:1px solid var(--line);border-radius:999px;padding:3px 10px;color:var(--text);font-size:13px}
 .chips input{width:auto}
 .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
@@ -213,6 +230,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   <button data-tab="att" id="attTabBtn" class="hidden">出欠確認</button>
   <button data-tab="duty" id="dutyTabBtn" class="hidden">当番希望日</button>
   <button data-tab="family" class="masterOnly">家庭情報登録</button>
+  <button data-tab="dutycount" class="masterOnly">当番回数管理</button>
   <button data-tab="log" class="masterOnly">更新履歴</button>
   <button data-tab="settings">アカウント設定</button>
 </nav>
@@ -352,6 +370,21 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <div id="famEdit"></div>
       <div id="famLoose"></div>
       <div class="actions" id="famAddBox"><button class="primary" id="famAdd">＋ 家庭を追加</button></div>
+    </div>
+  </section>
+
+  <!-- 当番回数管理(マスターのみ) -->
+  <section id="view-dutycount" class="hidden">
+    <div class="card">
+      <h3>当番回数管理</h3>
+      <div class="meta">予定の「当番」に入った回数を家庭ごとに数えます(同じ予定に同じ家庭から2人入っても1回)。</div>
+      <div class="dcBar">
+        <span class="seg" id="dcBy"><button data-v="month">月別</button><button data-v="dow">曜日別</button><button data-v="year">年別</button></span>
+        <select id="dcYear" style="width:auto"></select>
+        <span class="seg" id="dcView"><button data-v="table">表</button><button data-v="chart">棒グラフ</button></span>
+        <label style="margin:0"><input type="checkbox" id="dcFuture" style="width:auto"> 今日以降の予定も含める</label>
+      </div>
+      <div id="dcBody"></div>
     </div>
   </section>
 
@@ -860,11 +893,11 @@ function render(){
   $('dutyTabBtn').textContent = inApp ? DM().tab : '当番希望日';
   $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
   if (!dutyVis && S.tab === 'duty') { S.tab = 'cal'; S.dutyPick = null; }
-  if (!isMaster() && (S.tab === 'log' || S.tab === 'family')) S.tab = 'cal';   // 更新履歴・家庭情報登録はマスターのみ
+  if (!isMaster() && ['log', 'family', 'dutycount'].includes(S.tab)) S.tab = 'cal';   // 更新履歴・家庭情報登録はマスターのみ
   // 出欠確認タブは全アカウントに表示
   $('attTabBtn').classList.toggle('hidden', !(inApp && canAttTab()));
   if (inApp && !canAttTab() && S.tab === 'att') { S.tab = 'cal'; S.attPick = null; }
-  for (const t of ['cal', 'members', 'att', 'duty', 'family', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
+  for (const t of ['cal', 'members', 'att', 'duty', 'family', 'dutycount', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('bellBtn').classList.toggle('hidden', !inApp);
   if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
@@ -873,6 +906,7 @@ function render(){
   if (S.tab === 'att') renderAtt();
   if (S.tab === 'duty') renderDuty();
   if (S.tab === 'family' && !S.editFam) renderFamilies();  // 編集中は入力が消えないよう再描画しない
+  if (S.tab === 'dutycount') renderDutyCount();
   if (S.tab === 'log') renderLog();
   if (S.tab === 'settings' && !S.settingsDirty) renderSettings();
   renderBell();
@@ -2243,6 +2277,76 @@ async function saveFam(){
   S.editFam = null; S.migratedAt = 0; renderFamilies();
 }
 $('famAdd').onclick = () => { S.editFam = {id:'', surname:'', kids:[], relatives:[{rid:newRid(), rel:'母', role:'parent'}, {rid:newRid(), rel:'父', role:'parent'}]}; renderFamilies(); };
+
+/* ---------- 当番回数管理 ---------- */
+const DOWS = ['日', '月', '火', '水', '木', '金', '土'];
+// 当番の名前 → 家庭(決定した当番はアカウント、それ以外は名前・苗字で照合)
+function dutyHome(name, e){
+  const H = households(), byUser = u => u?.famRel && H.find(h => h.id === u.famRel.split('|')[0]);
+  // 名前は全角・半角カッコや空白の違いを無視して比べる(名前の表記が後から変わっていても数えられるように)
+  const nm = x => String(x || '').replace(/（/g, '(').replace(/）/g, ')').replace(/\s/g, ''), n = nm(name);
+  const u = (e.dutyUid && e.duty.length === 1 && S.users.find(x => x.id === e.dutyUid)) || S.users.find(x => nm(x.name) === n);
+  const h = byUser(u) || H.find(h => (h.relatives || []).some(r => nm(relLabel(h, r)) === n));
+  if (h) return h;
+  const sur = H.filter(h => h.surname && n.startsWith(nm(h.surname)));
+  return sur.length === 1 ? sur[0] : null;
+}
+function dutyCounts(){
+  const today = ymd(new Date()), rows = new Map(), unknown = new Map();
+  for (const e of S.events) {
+    if (!(e.duty || []).length || !e.date || (!S.dcFuture && e.date > today)) continue;
+    const homes = new Set();
+    for (const n of e.duty) { const h = dutyHome(n, e); if (h) homes.add(h.id); else unknown.set(n, (unknown.get(n) || 0) + 1); }
+    for (const id of homes) { if (!rows.has(id)) rows.set(id, []); rows.get(id).push(e.date); }
+  }
+  return {rows, unknown};
+}
+function renderDutyCount(){
+  S.dcBy ||= 'month'; S.dcView ||= 'table';
+  const {rows, unknown} = dutyCounts(), all = [...rows.values()].flat();
+  const years = [...new Set([...all.map(d => +d.slice(0, 4)), new Date().getFullYear()])].sort((a, b) => b - a);
+  if (!years.includes(S.dcYear)) S.dcYear = new Date().getFullYear();
+  $('dcYear').innerHTML = years.map(y => `<option value="${y}" ${y === S.dcYear ? 'selected' : ''}>${y}年</option>`).join('');
+  $('dcYear').disabled = S.dcBy === 'year';
+  $('dcFuture').checked = !!S.dcFuture;
+  for (const id of ['dcBy', 'dcView']) $(id).querySelectorAll('button').forEach(b => {
+    b.className = b.dataset.v === S[id] ? 'on pick' : '';
+    b.onclick = () => { S[id] = b.dataset.v; renderDutyCount(); };
+  });
+  $('dcYear').onchange = () => { S.dcYear = +$('dcYear').value; renderDutyCount(); };
+  $('dcFuture').onchange = () => { S.dcFuture = $('dcFuture').checked; renderDutyCount(); };
+  // 列(年別は年、月別は1〜12月、曜日別は日〜土)
+  const cols = S.dcBy === 'year' ? [...years].reverse().map(y => ({k:y, label:y + '年'}))
+    : S.dcBy === 'month' ? [...Array(12)].map((_, i) => ({k:i + 1, label:(i + 1) + '月'}))
+    : DOWS.map((d, i) => ({k:i, label:d, cls:i === 0 ? 'sun' : i === 6 ? 'sat' : ''}));
+  const keyOf = d => S.dcBy === 'year' ? +d.slice(0, 4) : S.dcBy === 'month' ? +d.slice(5, 7) : new Date(d + 'T00:00').getDay();
+  const inYear = d => S.dcBy === 'year' || +d.slice(0, 4) === S.dcYear;
+  const data = households().map(h => {
+    const ds = (rows.get(h.id) || []).filter(inYear), c = cols.map(col => ds.filter(d => keyOf(d) === col.k).length);
+    return {h, c, total:ds.length};
+  });
+  const sum = cols.map((_, i) => data.reduce((n, r) => n + r.c[i], 0)), total = data.reduce((n, r) => n + r.total, 0);
+  const title = S.dcBy === 'year' ? '全期間' : S.dcYear + '年';
+  let html = '';
+  if (!data.length) html = '<div class="meta">家庭情報が登録されていません。</div>';
+  else if (S.dcView === 'table') {
+    html = `<div class="meta">${title}・合計 ${total}回</div><div class="dcWrap"><table class="dcTbl">
+      <tr><th>家庭</th>${cols.map(c => `<th class="${c.cls || ''}">${c.label}</th>`).join('')}<th>合計</th></tr>
+      ${data.map(r => `<tr><td>${esc(r.h.surname)}家</td>${r.c.map(n => `<td class="${n ? '' : 'z'}">${n}</td>`).join('')}<td><b>${r.total}</b></td></tr>`).join('')}
+      <tr class="sum"><td>合計</td>${sum.map(n => `<td>${n}</td>`).join('')}<td>${total}</td></tr></table></div>`;
+  } else {
+    // 家庭ごとの横棒(月・曜日・年ごとに色分けして積み上げ)
+    const color = i => S.dcBy === 'dow' ? ['#ef4444', '#64748b', '#94a3b8', '#0ea5e9', '#14b8a6', '#a78bfa', '#2563eb'][i]
+      : `hsl(${Math.round(i * 360 / cols.length)} 65% 55%)`;
+    const max = Math.max(1, ...data.map(r => r.total));
+    html = `<div class="meta">${title}・合計 ${total}回</div>
+      <div class="dcLeg">${cols.map((c, i) => `<span><i style="background:${color(i)}"></i>${c.label}</span>`).join('')}</div>
+      ${data.map(r => `<div class="dcRow"><span class="nm">${esc(r.h.surname)}家</span><span class="bar">${r.c.map((n, i) => n
+        ? `<span style="width:${n / max * 100}%;background:${color(i)}" title="${cols[i].label}：${n}回"></span>` : '').join('')}</span><span class="n">${r.total}</span></div>`).join('')}`;
+  }
+  if (unknown.size) html += `<div class="meta" style="margin-top:10px">※家庭が分からない当番(数えていません)：${esc([...unknown].map(([n, c]) => `${n}(${c}回)`).join('、'))}<br>アカウント設定で家庭情報の名前を選ぶと数えられます。</div>`;
+  $('dcBody').innerHTML = html;
+}
 
 /* ---------- 履歴 ---------- */
 function renderLog(){
