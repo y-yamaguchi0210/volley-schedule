@@ -421,6 +421,14 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
         <div class="actions"><button id="rsSend">再設定メールを送る</button></div>
       </div>
     </div>
+    <div class="card masterOnly" style="max-width:560px;margin-top:16px">
+      <h3>合言葉の変更</h3>
+      <p class="meta">新しくアカウントを登録するときに入力する合言葉です。変更しても、登録済みのアカウントはそのまま使えます。</p>
+      <div class="meta">現在の合言葉：<b id="jCur"></b></div>
+      <label>新しい合言葉</label><input id="jNew" autocomplete="off">
+      <div class="err" id="jMsg"></div>
+      <div class="actions"><button class="primary" id="jSave">合言葉を変更</button></div>
+    </div>
     <div class="card notMaster" style="max-width:560px;margin-top:16px">
       <h3>アカウントの削除</h3>
       <p class="meta">削除すると、このアカウントではログインできなくなります。これまでの出欠の回答や更新履歴は残ります。</p>
@@ -603,7 +611,7 @@ function localStore(){
 }
 
 /* ================= 状態 ================= */
-const S = { auth:null, users:[], members:[], events:[], logs:[], private:[], claims:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
+const S = { auth:null, users:[], members:[], events:[], logs:[], private:[], claims:[], config:[], month:new Date(), tab:'cal', openDate:null, subscribed:false, clip:null, pasteDates:new Set(), noticeShown:false, delMode:false, delDates:new Set(), delUnit:'day' };
 S.month.setDate(1);
 // 予定編集で選べる時間帯(先頭が新規追加時の初期値)
 const TIME_PRESETS = [['08:00', '12:00'], ['14:00', '18:00'], ['16:00', '18:00']];
@@ -820,8 +828,8 @@ function handleAuth(a){
   S.auth = a;
   if (a && !S.unsubs) {
     // 更新履歴(logs)はマスターだけが読み込む(Firestoreのルールでもマスター以外は読めない)
-    // マスターは private(メールアドレス)と claims(使用中の名前)も読み込む
-    S.unsubs = ['users', 'members', 'events', ...(isMaster() ? ['logs', 'private', 'claims'] : [])].map(c => store.subscribe(c, rows => {
+    // マスターは private(メールアドレス)と claims(使用中の名前)、config(合言葉)も読み込む
+    S.unsubs = ['users', 'members', 'events', ...(isMaster() ? ['logs', 'private', 'claims', 'config'] : [])].map(c => store.subscribe(c, rows => {
       if (c === 'users') {
         // マスターが削除したアカウントは deleted フラグ付きで残る → 一覧から除外
         S.usersLoaded = true;
@@ -832,13 +840,13 @@ function handleAuth(a){
       (S.loaded ||= {})[c] = true;
       if (kickIfDeleted()) return;
       ensureMasterProfile(); render();
-    }, e => ['private', 'claims'].includes(c) || denied(e)));
+    }, e => ['private', 'claims', 'config'].includes(c) || denied(e)));
   }
   if (!a && S.unsubs) {
     // ログアウト時は購読を解除(次のログインで購読し直す)
     S.unsubs.forEach(u => typeof u === 'function' && u());
     S.unsubs = null; S.usersLoaded = false; S.rawUsers = [];
-    S.users = S.members = S.events = S.logs = S.private = S.claims = [];
+    S.users = S.members = S.events = S.logs = S.private = S.claims = S.config = [];
     S.dutyPick = null; S.attPick = null; S.attKid = ''; S.loaded = {};
   }
   if (kickIfDeleted()) return;
@@ -1963,6 +1971,8 @@ function renderSettings(){
   $('rsSend').classList.toggle('hidden', !canMail);
   $('rsMsg').textContent = '';
   $('sMsg').textContent = '';
+  // 合言葉(マスターのみ)。初期の合言葉はソースに書かないため、未変更のときは値を出さない
+  if (isMaster()) $('jCur').textContent = S.config.find(c => c.id === 'join')?.key || '初期設定のまま(変更するとここに表示されます)';
 }
 // その子を選択している自分以外のアカウント(マスター承認で複数になることがある)
 const takenBy = kidId => S.users.filter(u => u.id !== S.auth?.uid && (u.childIds || []).includes(kidId));
@@ -2080,6 +2090,17 @@ $('rsSend').onclick = async () => {
   } finally { $('rsSend').disabled = false; }
 };
 // パスワード変更
+// 合言葉の変更(Firestoreのルールが config/join の合言葉で登録を確認する)
+$('jSave').onclick = async () => {
+  const key = $('jNew').value.trim().normalize('NFC'), msg = $('jMsg');
+  msg.style.color = '';
+  if (!key) { msg.textContent = '新しい合言葉を入力してください'; return; }
+  if (!confirm(`合言葉を「${key}」に変更しますか？\n今後の新規登録はこの合言葉が必要になります。`)) return;
+  try {
+    await store.set('config', 'join', {key, at:Date.now()});
+    $('jNew').value = ''; msg.style.color = 'var(--ok)'; msg.textContent = '合言葉を変更しました';
+  } catch (e) { console.warn('join', e); msg.textContent = '変更できませんでした(' + (e.code || e.message) + ')'; }
+};
 $('pSave').onclick = async () => {
   const cur = $('pCur').value, next = $('pNew').value, msg = $('pMsg');
   msg.style.color = '';
