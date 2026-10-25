@@ -381,9 +381,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <div class="dcBar">
         <span class="seg" id="dcBy"><button data-v="month">月別</button><button data-v="dow">曜日別</button><button data-v="year">年別</button></span>
         <select id="dcYear" style="width:auto"></select>
-        <span class="seg" id="dcView"><button data-v="table">表</button><button data-v="chart">棒グラフ</button></span>
-        <label style="margin:0"><input type="checkbox" id="dcFuture" style="width:auto"> 今日以降の予定も含める</label>
-      </div>
+        <span class="seg" id="dcView"><button data-v="table">表</button><button data-v="chart">棒グラフ</button></span>      </div>
       <div id="dcBody"></div>
     </div>
   </section>
@@ -2345,9 +2343,10 @@ function dutyHome(name, e){
   return sur.length === 1 ? sur[0] : null;
 }
 function dutyCounts(){
-  const today = ymd(new Date()), rows = new Map(), unknown = new Map();
+  // 今日以降の予定に入っている当番も数える
+  const rows = new Map(), unknown = new Map();
   for (const e of S.events) {
-    if (!(e.duty || []).length || !e.date || (!S.dcFuture && e.date > today)) continue;
+    if (!(e.duty || []).length || !e.date) continue;
     const homes = new Set();
     for (const n of e.duty) { const h = dutyHome(n, e); if (h) homes.add(h.id); else unknown.set(n, (unknown.get(n) || 0) + 1); }
     for (const id of homes) { if (!rows.has(id)) rows.set(id, []); rows.get(id).push(e.date); }
@@ -2361,13 +2360,11 @@ function renderDutyCount(){
   if (!years.includes(S.dcYear)) S.dcYear = new Date().getFullYear();
   $('dcYear').innerHTML = years.map(y => `<option value="${y}" ${y === S.dcYear ? 'selected' : ''}>${y}年</option>`).join('');
   $('dcYear').disabled = S.dcBy === 'year';
-  $('dcFuture').checked = !!S.dcFuture;
   for (const id of ['dcBy', 'dcView']) $(id).querySelectorAll('button').forEach(b => {
     b.className = b.dataset.v === S[id] ? 'on pick' : '';
     b.onclick = () => { S[id] = b.dataset.v; renderDutyCount(); };
   });
   $('dcYear').onchange = () => { S.dcYear = +$('dcYear').value; renderDutyCount(); };
-  $('dcFuture').onchange = () => { S.dcFuture = $('dcFuture').checked; renderDutyCount(); };
   // 列(年別は年、月別は1〜12月、曜日別は日〜土)
   const cols = S.dcBy === 'year' ? [...years].reverse().map(y => ({k:y, label:y + '年'}))
     : S.dcBy === 'month' ? [...Array(12)].map((_, i) => ({k:i + 1, label:(i + 1) + '月'}))
