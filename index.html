@@ -1792,10 +1792,10 @@ function renderSettings(){
   $('sNameNote').classList.toggle('hidden', !useSel);
   if (useSel) {
     const cur = opts.find(o => o.key === u.famRel);
-    $('sNameSel').innerHTML = (cur ? '' : `<option value="">${u.name ? `${esc(u.name)}（現在の名前）` : '（選択してください）'}</option>`) + opts.map(o => {
-      const owner = !cur || o.key !== cur.key ? S.users.find(x => x.id !== S.auth?.uid && x.famRel === o.key) : null;
-      return `<option value="${esc(o.key)}" ${cur && o.key === cur.key ? 'selected' : ''} ${owner ? 'disabled' : ''}>${esc(o.label)}${owner ? ` … ${esc(owner.name)}さんが選択済み` : ''}</option>`;
-    }).join('');
+    // 他のアカウントが選択済みの名前は選択肢に出さない
+    const free = opts.filter(o => (cur && o.key === cur.key) || !S.users.some(x => x.id !== S.auth?.uid && x.famRel === o.key));
+    $('sNameSel').innerHTML = (cur ? '' : `<option value="">${u.name ? `${esc(u.name)}（現在の名前）` : '（選択してください）'}</option>`) + free.map(o =>
+      `<option value="${esc(o.key)}" ${cur && o.key === cur.key ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
   }
   $('sNotify').checked = u.notify !== false;
   showFamLink();
