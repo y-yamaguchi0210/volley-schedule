@@ -820,7 +820,7 @@ function render(){
   $('bellBtn').classList.toggle('hidden', !inApp);
   if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
   if (S.tab === 'cal') renderCal();
-  if (S.tab === 'members') renderMembers();
+  if (S.tab === 'members' && !S.editUser) renderMembers();  // 編集中は入力が消えないよう再描画しない
   if (S.tab === 'att') renderAtt();
   if (S.tab === 'duty') renderDuty();
   if (S.tab === 'family' && !S.editFam) renderFamilies();  // 編集中は入力が消えないよう再描画しない
@@ -835,7 +835,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
   if (S.tab === 'att' && b.dataset.tab !== 'att' && !leaveAttOk()) return;
   if (b.dataset.tab !== 'duty') S.dutyPick = null;
   if (b.dataset.tab !== 'att') S.attPick = null;
-  S.tab = b.dataset.tab; S.settingsDirty = false; S.editFam = null; render();
+  S.tab = b.dataset.tab; S.settingsDirty = false; S.editFam = null; S.editUser = null; render();
 });
 
 function countAtt(ev, list){
@@ -1762,13 +1762,33 @@ function renderMembers(){
     const info = roleLabel(u) === 'マスター' ? 'マスター（管理者）' : u.role === 'coach'
       ? '指導者' + (nameOf(u.coachId) ? `（名簿：${esc(nameOf(u.coachId))}）` : '（名簿未設定）')
       : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の${esc(u.relation || '保護者')}` : '（子供未設定）');
-    const delBtn = isMaster() && roleLabel(u) !== 'マスター' ? `<button class="danger" data-rmuser="${u.id}">削除</button>` : '';
+    const canEdit = isMaster() && roleLabel(u) !== 'マスター';
+    if (canEdit && S.editUser === u.id) return userEditLi(u);
+    const delBtn = canEdit ? `<span style="white-space:nowrap"><button data-eduser="${u.id}">編集</button><button class="danger" data-rmuser="${u.id}">削除</button></span>` : '';
     const reqs = requests().filter(r => r.u.id === u.id);
-    return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}</span></span>${delBtn}
+    return `<li style="flex-wrap:wrap"><span>${esc(u.name)} <span class="meta">${info}${canEdit && u.email ? `・${esc(loginName(u.email))}` : ''}</span></span>${delBtn}
       ${reqs.map(r => `<div style="width:100%" class="meta">⏳ ${esc(r.k.name)} の選択を申請中（${esc(takenBy(r.k.id).map(o => o.name).join('・') || 'なし')}さんが選択済み）
         ${isMaster() ? reqButtons(r) : ''}</div>`).join('')}</li>`;
   }).join('');
   bindReqButtons($('userList'));
+  // マスターによるアカウントの編集（名前＝家庭情報の親族を選ぶと、立場・子供も自動で設定）
+  document.querySelectorAll('[data-eduser]').forEach(b => b.onclick = () => { S.editUser = b.dataset.eduser; renderMembers(); });
+  if (S.editUser) {
+    const sel = $('euSel'), showName = () => $('euName').classList.toggle('hidden', sel.value !== '');
+    sel.onchange = showName; showName();
+    $('euCancel').onclick = () => { S.editUser = null; renderMembers(); };
+    $('euSave').onclick = async () => {
+      const u = S.users.find(x => x.id === S.editUser), o = nameOpts().find(x => x.key === sel.value);
+      const name = o ? o.label : $('euName').value.trim();
+      if (!name) { $('euMsg').textContent = 'お名前を入力してください'; return; }
+      const dup = o && S.users.find(x => x.id !== u.id && x.famRel === o.key);
+      if (dup) { $('euMsg').textContent = `${o.label} は ${dup.name}さんが選択済みです`; return; }
+      const patch = {notify:$('euNotify').checked, ...(o ? famLink(o) : u.famRel ? {name, famRel:'', childIds:[], pendingChildIds:[], coachId:''} : {name})};
+      await store.update('users', u.id, patch);
+      log(`アカウント「${u.name}」を編集${u.name !== name ? `（→${name}）` : ''}`);
+      S.editUser = null; renderMembers();
+    };
+  }
   // マスターによるアカウント削除（ログインできないよう deleted フラグを付け、子供の選択を解除）
   document.querySelectorAll('[data-rmuser]').forEach(b => b.onclick = async () => {
     const u = S.users.find(x => x.id === b.dataset.rmuser);
@@ -1776,6 +1796,20 @@ function renderMembers(){
     await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:''});
     log(`アカウント「${u.name}」を削除`);
   });
+}
+// アカウント編集欄：他のアカウントが選択済みの名前は出さない
+function userEditLi(u){
+  const free = nameOpts().filter(o => o.key === u.famRel || !S.users.some(x => x.id !== u.id && x.famRel === o.key));
+  return `<li style="flex-wrap:wrap"><div style="width:100%">
+    <div class="meta">${esc(u.name)} さんのアカウント${u.email ? `（${esc(loginName(u.email))}）` : ''}を編集</div>
+    <label>お名前</label>
+    <select id="euSel"><option value="">（家庭情報と紐付けない）</option>${free.map(o =>
+      `<option value="${esc(o.key)}" ${o.key === u.famRel ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>
+    <input id="euName" value="${esc(u.name || '')}" placeholder="お名前">
+    <div class="meta">家庭情報の名前を選ぶと、立場・子供が自動で設定されます。</div>
+    <label><input type="checkbox" id="euNotify" style="width:auto" ${u.notify !== false ? 'checked' : ''}> 未回答の出欠があるとき、前日にメールでお知らせを受け取る</label>
+    <div class="actions"><button class="primary" id="euSave">保存</button><button id="euCancel">キャンセル</button></div>
+    <div id="euMsg" class="meta" style="color:var(--ng)"></div></div></li>`;
 }
 // 兄弟姉妹（同じ familyId を持つ子）
 const siblingsOf = m => m.familyId ? kids().filter(k => k.id !== m.id && k.familyId === m.familyId) : [];
