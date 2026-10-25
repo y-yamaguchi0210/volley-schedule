@@ -267,8 +267,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- メンバー -->
   <section id="view-members" class="hidden">
-    <div class="banner notMaster">メンバーの追加・編集・削除は、マスター権限のアカウントのみ行えます。</div>
-    <div class="banner masterOnly">子供・指導者は「家庭情報登録」で登録した内容が反映されます（追加は「家庭情報登録」から行ってください）。</div>
+    <div class="banner">子供・指導者は「家庭情報登録」で登録した内容が反映されます。<span class="masterOnly">追加・編集・削除は「家庭情報登録」から行ってください。</span></div>
     <div class="cols">
       <div class="card">
         <h3>子供（選手）<span id="kidCount"></span></h3>
@@ -349,6 +348,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       <div class="meta">登録した親族（保護者）は、大会・練習試合の「保護者の引率・車出し」の選択肢になります。</div>
       <ul class="list" id="famList"></ul>
       <div id="famEdit"></div>
+      <div id="famLoose"></div>
       <div class="actions" id="famAddBox"><button class="primary" id="famAdd">＋ 家庭を追加</button></div>
     </div>
   </section>
@@ -791,7 +791,6 @@ function render(){
   $('logoutBtn').classList.toggle('hidden', !inApp);
   $('who').textContent = inApp ? `${myName()} さん（${isMaster() ? 'マスター' : roleLabel(me())}）でログイン中` : '';
   document.body.classList.toggle('is-master', isMaster());
-  if (!isMaster()) S.editMember = null;
   // 当番希望日タブはマスターがオンにしたときだけ表示（マスターには常に表示）
   // 締切の時刻ちょうどに表示を切り替えるため、その時刻に再描画を予約
   if (inApp) dutyAutoOff();
@@ -812,7 +811,7 @@ function render(){
   $('bellBtn').classList.toggle('hidden', !inApp);
   if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
   if (S.tab === 'cal') renderCal();
-  if (S.tab === 'members' && !S.editMember) renderMembers();  // 編集中は入力が消えないよう再描画しない
+  if (S.tab === 'members') renderMembers();
   if (S.tab === 'att') renderAtt();
   if (S.tab === 'duty') renderDuty();
   if (S.tab === 'family' && !S.editFam) renderFamilies();  // 編集中は入力が消えないよう再描画しない
@@ -827,7 +826,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
   if (S.tab === 'att' && b.dataset.tab !== 'att' && !leaveAttOk()) return;
   if (b.dataset.tab !== 'duty') S.dutyPick = null;
   if (b.dataset.tab !== 'att') S.attPick = null;
-  S.tab = b.dataset.tab; S.settingsDirty = false; S.editMember = null; S.editFam = null; render();
+  S.tab = b.dataset.tab; S.settingsDirty = false; S.editFam = null; render();
 });
 
 function countAtt(ev, list){
@@ -1719,22 +1718,10 @@ function editEvent(ev, date){
 function renderMembers(){
   const li = m => {
     const kid = m.type === 'kid';
-    if (S.editMember === m.id) {
-      const sibs = siblingsOf(m).map(s => s.id);
-      const others = kids().filter(k => k.id !== m.id);
-      return `<li style="flex-wrap:wrap">
-      <input id="emName" value="${esc(m.name)}" style="flex:1;min-width:120px">
-      ${kid ? `<select id="emGender" style="max-width:80px">${genderOptions(m.gender)}</select>` : ''}
-      <select id="emSub" style="max-width:110px">${kid ? gradeOptions(gradeOf(m)) : posOptions(m.position)}</select>
-      <button class="primary" id="emSave">保存</button><button id="emCancel">取消</button>
-      ${kid && others.length ? `<div style="width:100%"><div class="meta">兄弟姉妹（チェックした子と同じ家族になります）</div>
-        <div class="chips">${others.map(k => `<label><input type="checkbox" class="emSib" value="${k.id}" ${sibs.includes(k.id)?'checked':''}>${esc(k.name)}（${esc(gradeOf(k))}）</label>`).join('')}</div></div>` : ''}
-      </li>`;
-    }
     const sibs = kid ? siblingsOf(m) : [], hh = households().find(h => h.id === m.familyId);
-    return `<li><span>${esc(m.name)}${subLabel(m) ? ` <span class="meta">${esc(subLabel(m))}</span>` : ''}${hh ? ` <span class="meta">・${esc(hh.surname)}家</span>` : ''}
+    return `<li><span>${esc(m.name)}${subLabel(m) ? ` <span class="meta">${esc(subLabel(m))}</span>` : ''}${hh ? ` <span class="meta">・${esc(hh.surname)}家</span>` : isMaster() ? ' <span class="meta" style="color:var(--ng)">・家庭情報未登録</span>' : ''}
       ${sibs.length ? `<br><span class="meta">兄弟姉妹：${esc(sibs.map(s => s.name).join('・'))}</span>` : ''}</span>
-      ${isMaster() ? `<button data-em="${m.id}">編集</button><button class="danger" data-rm="${m.id}">削除</button>` : ''}</li>`;
+</li>`;
   };
   // 人数と内訳
   const breakdown = (list, keys, f) => keys.map(k => [k, list.filter(m => f(m) === k).length]).filter(([, n]) => n)
@@ -1759,23 +1746,6 @@ function renderMembers(){
     .map(([g, list]) => `<li class="ghead"><span><b>${g || '男女未設定'}</b> <span class="meta">${list.length}人</span></span></li>` + list.map(li).join('')).join('')
     || '<li class="meta">まだ登録がありません</li>';
   $('coachList').innerHTML = coaches().map(li).join('') || '<li class="meta">まだ登録がありません</li>';
-  document.querySelectorAll('[data-em]').forEach(b => b.onclick = () => { S.editMember = b.dataset.em; renderMembers(); $('emName').focus(); });
-  if ($('emSave')) {
-    $('emCancel').onclick = () => { S.editMember = null; renderMembers(); };
-    $('emSave').onclick = async () => {
-      const m = S.members.find(x => x.id === S.editMember), kid = m.type === 'kid';
-      const name = $('emName').value.trim(), sub = $('emSub').value, gender = kid ? $('emGender').value : '';
-      if (!name) { alert('名前を入力してください'); return; }
-      if (kid && !gender) { alert('女子・男子を選択してください'); return; }
-      if (!sub) { alert(kid ? '学年を選択してください' : '役職を選択してください'); return; }
-      const sibIds = [...document.querySelectorAll('.emSib:checked')].map(c => c.value);
-      S.editMember = null;
-      await store.update('members', m.id, kid ? {name, grade:sub, gender} : {name, position:sub});
-      log(`${kid?'子供':'指導者'}「${m.name}」を「${name}（${kid ? gender + '・' : ''}${sub}）」に編集`);
-      if (kid) await setSiblings(m, sibIds);
-      renderMembers();
-    };
-  }
   const nameOf = id => S.members.find(m => m.id === id)?.name;
   $('userList').innerHTML = S.users.map(u => {
     const ks = (u.childIds || []).map(nameOf).filter(Boolean);
@@ -1796,29 +1766,9 @@ function renderMembers(){
     await store.update('users', u.id, {deleted:true, deletedAt:Date.now(), childIds:[], pendingChildIds:[], coachId:''});
     log(`アカウント「${u.name}」を削除`);
   });
-  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => {
-    const m = S.members.find(x => x.id === b.dataset.rm);
-    if (!confirm(`${m.name} を削除しますか？（過去の出欠記録は表示されなくなります）`)) return;
-    await store.remove('members', m.id);
-    log(`${m.type==='kid'?'子供':'指導者'}「${m.name}」を削除`);
-  });
 }
 // 兄弟姉妹（同じ familyId を持つ子）
 const siblingsOf = m => m.familyId ? kids().filter(k => k.id !== m.id && k.familyId === m.familyId) : [];
-// m の兄弟を sibIds に設定し直す（選んだ子がすでに別の兄弟グループならそれごと合流）
-async function setSiblings(m, sibIds){
-  const cur = siblingsOf(m).map(k => k.id);
-  if (cur.length === sibIds.length && cur.every(id => sibIds.includes(id))) return;
-  const all = kids();
-  const group = new Set([m.id, ...sibIds]);
-  sibIds.forEach(id => { const f = all.find(k => k.id === id)?.familyId; if (f) all.filter(k => k.familyId === f && k.id !== m.id && !cur.includes(k.id)).forEach(k => group.add(k.id)); });
-  const fid = group.size > 1 ? (m.familyId || m.id) : '';
-  for (const k of all) {
-    const want = group.has(k.id) ? fid : (cur.includes(k.id) ? '' : k.familyId || '');
-    if ((k.familyId || '') !== want) await store.update('members', k.id, {familyId: want});
-  }
-  log(`子供「${m.name}」の兄弟姉妹を「${sibIds.map(id => all.find(k => k.id === id)?.name).join('・') || 'なし'}」に設定`);
-}
 
 /* ---------- アカウント設定 ---------- */
 function renderSettings(){
@@ -2011,9 +1961,21 @@ function renderFamilies(){
   const H = households(), editing = !!S.editFam;
   $('famCount').textContent = `　${H.length}家庭`;
   $('famList').classList.toggle('hidden', editing);
+  $('famLoose').classList.toggle('hidden', editing);
   $('famAddBox').classList.toggle('hidden', editing);
   if (editing) return renderFamEdit();
   $('famEdit').innerHTML = '';
+  const loose = [...kids(), ...coaches()].filter(m => !H.some(h => h.id === m.familyId));
+  $('famLoose').innerHTML = loose.length ? `<h4>家庭情報に未登録のメンバー</h4>
+    <div class="meta">子どもは各家庭の「編集」→「登録済みの子どもから追加」で家庭に入れてください。不要なら削除できます。</div>
+    <ul class="list">${loose.map(m => `<li><span>${esc(m.name)} <span class="meta">${m.type === 'kid' ? '子ども' : '指導者'}${subLabel(m) ? '・' + esc(subLabel(m)) : ''}</span></span>
+      <button class="danger" data-rmloose="${m.id}">削除</button></li>`).join('')}</ul>` : '';
+  document.querySelectorAll('[data-rmloose]').forEach(b => b.onclick = async () => {
+    const m = S.members.find(x => x.id === b.dataset.rmloose);
+    if (!confirm(`${m.name} を削除しますか？（過去の出欠記録は表示されなくなります）`)) return;
+    await store.remove('members', m.id);
+    log(`${m.type === 'kid' ? '子供' : '指導者'}「${m.name}」を削除`);
+  });
   $('famList').innerHTML = H.map(h => `<li style="flex-wrap:wrap"><span><b>${esc(h.surname)}家</b>
       <br><span class="meta">子ども：${esc(famKids(h).map(k => `${k.name}（${k.gender || '男女未設定'}・${gradeOf(k) || '学年未設定'}）`).join('、') || 'なし')}</span>
       <br><span class="meta">親族：${esc((h.relatives || []).map(r => `${r.rel}（${relText(r)}）`).join('、') || 'なし')}</span></span>
@@ -2026,7 +1988,9 @@ function renderFamilies(){
   });
   document.querySelectorAll('[data-rmfam]').forEach(b => b.onclick = async () => {
     const h = households().find(x => x.id === b.dataset.rmfam);
-    if (!confirm(`${h.surname}家の家庭情報を削除しますか？\n（子どもはメンバーに残り、兄弟姉妹のつながりもそのままです）`)) return;
+    const ms = S.members.filter(m => m.familyId === h.id && (m.type === 'kid' || m.type === 'coach'));
+    if (!confirm(`${h.surname}家の家庭情報を削除しますか？${ms.length ? `\n${ms.map(m => m.name).join('・')} もメンバーから削除され、過去の出欠記録は表示されなくなります。` : ''}`)) return;
+    for (const m of ms) await store.remove('members', m.id);
     await store.remove('members', h.id);
     log(`家庭情報「${h.surname}家」を削除`);
   });
@@ -2083,7 +2047,8 @@ async function saveFam(){
   if (f.kids.some(k => !k.name || !k.gender || !k.grade)) return msg('子どもの名前・男女・学年をすべて入力してください');
   if (f.relatives.some(r => !r.rel)) return msg('親族の続柄を入力してください');
   if (new Set(f.relatives.map(r => r.rel)).size < f.relatives.length) return msg('同じ続柄が重複しています（例：祖母が2人なら「祖母（父方）」のように区別してください）');
-  const old = f.id ? kids().filter(k => k.familyId === f.id) : [];
+  const old = f.id ? kids().filter(k => k.familyId === f.id) : [], gone = old.filter(k => !f.kids.some(x => x.id === k.id));
+  if (gone.length && !confirm(`${gone.map(k => k.name).join('・')} をメンバーから削除します（過去の出欠記録は表示されなくなります）。よろしいですか？`)) return;
   const data = {type:'family', name:f.surname + '家', surname:f.surname, kana:f.kana, relatives:f.relatives, ...stamp()};
   let id = f.id;
   if (id) await store.update('members', id, data); else id = (await store.add('members', data)).id;
@@ -2092,8 +2057,8 @@ async function saveFam(){
     if (!m) await store.add('members', {type:'kid', ...patch, ...stamp()});
     else if (Object.keys(patch).some(p => (m[p] || '') !== patch[p])) await store.update('members', m.id, patch);
   }
-  // 外した子は家庭から外す
-  for (const k of old) if (!f.kids.some(x => x.id === k.id)) await store.update('members', k.id, {familyId:''});
+  // 外した子はメンバーから削除
+  for (const k of gone) await store.remove('members', k.id);
   // 指導者の親族を指導者名簿に反映（指導者でなくなった・外した親族は名簿から削除）
   for (const r of f.relatives.filter(r => r.role === 'coach')) {
     const patch = {name:relLabel(f, r), position:r.position}, m = relCoach(id, r.rid);
