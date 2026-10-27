@@ -2,7 +2,7 @@
   "name": "WINGS月間予定表",
   "short_name": "WINGS予定表",
   "start_url": "./",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#4b1b9e",
   "theme_color": "#4b1b9e",
   "icons": [
