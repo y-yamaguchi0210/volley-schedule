@@ -1087,9 +1087,21 @@ $('bulkDelBtn').onclick = () => {
 };
 
 /* ---------- 日別モーダル ---------- */
-function openDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; renderDay(date); $('modal').classList.remove('hidden'); }
-function closeModal(){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; }
-$('modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
+// スマホの戻るボタンでモーダルを閉じられるよう、開くときに履歴を1つ積む
+let modalHist = false;
+// 編集中なら閉じてよいか確認する
+const confirmLeave = () => !S.editing || confirm('編集中の内容は保存されません。閉じますか？');
+function tryClose(){ if (confirmLeave()) closeModal(); }
+function showModal(){ $('modal').classList.remove('hidden'); if (!modalHist){ history.pushState({modal:1}, ''); modalHist = true; } }
+window.addEventListener('popstate', () => {
+  if (!modalHist) return;
+  // 編集中は確認し、キャンセルなら履歴を積み直してモーダルを残す
+  if (!confirmLeave()){ history.pushState({modal:1}, ''); return; }
+  modalHist = false; closeModal();
+});
+function openDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; renderDay(date); showModal(); }
+function closeModal(keepHist){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; if (modalHist && !keepHist){ modalHist = false; history.back(); } }
+$('modal').onclick = e => { if (e.target.id === 'modal') tryClose(); };
 
 // 出欠は自分の子／指導者本人(とマスター)のみ回答できる
 const canAnswer = p => isMaster() || myMemberIds().includes(p.id);
@@ -1157,7 +1169,7 @@ function renderDay(date){
     <div class="actions">
       ${isMaster() && evs.length > 1 ? '<button id="copyAll">📋 この日の予定をまとめてコピー</button>' : ''}
       ${isMaster() ? '<button class="primary" id="addEv">＋ 予定を追加</button>' : ''}<button id="closeM">閉じる</button></div>`;
-  $('closeM').onclick = closeModal;
+  $('closeM').onclick = () => tryClose();
   if ($('addEv')) $('addEv').onclick = () => editEvent(null, date);
   // 当番希望と、希望から決めた当番はコピーしない
   const setClip = list => { S.clip = list.map(({id, attendance, escort, dutyWish, coachOk, dutyUid, dutyRole, dutyDraft, date, ...rest}) => dutyUid ? {...rest, duty:[]} : rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
@@ -1688,14 +1700,14 @@ function renderDutySet(){
 }
 $('dsPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('dsNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
-function openDutyDay(date){ if (!isMaster()) return; S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = true; renderDutyDay(date); $('modal').classList.remove('hidden'); }
+function openDutyDay(date){ if (!isMaster()) return; S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = true; renderDutyDay(date); showModal(); }
 function renderDutyDay(date){
   const d = new Date(date + 'T00:00'), evs = eventsOn(date).filter(isDutyEv);
   $('modalBody').innerHTML = `<h3>🧺 ${d.getMonth()+1}月${d.getDate()}日(${'日月火水木金土'[d.getDay()]})の当番決め</h3>
     <p class="meta">ここで選んだ当番は下書きです。「確定してカレンダーに反映」を押すまでカレンダーには表示されません。</p>
     ${evs.map(dutyItem).join('') || '<p class="meta">この日は練習の予定がありません。</p>'}
     <div class="actions"><button id="closeM">閉じる</button></div>`;
-  $('closeM').onclick = closeModal;
+  $('closeM').onclick = () => tryClose();
   bindDuty($('modalBody'));
 }
 function dutyItem(e){
@@ -2221,7 +2233,7 @@ function renderBell(){
     }
   }
 }
-function openNotices(){ closeModal(); S.noticeOpen = true; renderNotices(); $('modal').classList.remove('hidden'); }
+function openNotices(){ closeModal(true); S.noticeOpen = true; renderNotices(); showModal(); }
 function renderNotices(){
   const list = unanswered(), u = me();
   const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length, todo = dutyTodo();
@@ -2245,7 +2257,7 @@ function renderNotices(){
     <div class="actions">
       ${'Notification' in window && Notification.permission === 'default' ? '<button id="nPerm">この端末で通知を受け取る</button>' : ''}
       <button id="nClose">閉じる</button></div>`;
-  $('nClose').onclick = closeModal;
+  $('nClose').onclick = () => tryClose();
   if ($('nSettings')) $('nSettings').onclick = () => { closeModal(); S.tab = 'settings'; S.settingsDirty = false; render(); };
   bindReqButtons($('modalBody'));
   if ($('nPerm')) $('nPerm').onclick = () => Notification.requestPermission().then(() => renderNotices());
