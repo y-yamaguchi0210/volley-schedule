@@ -44,6 +44,7 @@ label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
 .hidden{display:none!important}
 header{background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
 header h1{font-size:18px;margin:0;flex:1;display:flex;align-items:center;gap:8px}
+header h1 .logo,header h1 .ttl{cursor:pointer}
 header h1 .logo{width:36px;height:36px;border-radius:50%;flex:none}
 header h1 .ttl span{white-space:nowrap}
 header .who{font-size:13px;color:var(--muted)}
@@ -935,14 +936,19 @@ function render(){
   renderBell();
   if (S.openDate && !$('modal').classList.contains('hidden') && !S.editing) (S.dutyOpen ? renderDutyDay : renderDay)(S.openDate);
   if (S.noticeOpen) renderNotices();
+  syncGuard();
 }
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
-  if (S.tab === 'duty' && b.dataset.tab !== 'duty' && !leaveDutyOk()) return;
-  if (S.tab === 'att' && b.dataset.tab !== 'att' && !leaveAttOk()) return;
-  if (b.dataset.tab !== 'duty') S.dutyPick = null;
-  if (b.dataset.tab !== 'att') S.attPick = null;
-  S.tab = b.dataset.tab; S.settingsDirty = false; S.editFam = null; S.editUser = null; render();
-});
+function goTab(tab){
+  if (S.tab === 'duty' && tab !== 'duty' && !leaveDutyOk()) return false;
+  if (S.tab === 'att' && tab !== 'att' && !leaveAttOk()) return false;
+  if (tab !== 'duty') S.dutyPick = null;
+  if (tab !== 'att') S.attPick = null;
+  S.tab = tab; S.settingsDirty = false; S.editFam = null; S.editUser = null; render();
+  return true;
+}
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => goTab(b.dataset.tab));
+// 左上のロゴ・タイトルでカレンダーへ
+document.querySelectorAll('header h1 .logo, header h1 .ttl').forEach(el => el.onclick = () => { if (S.auth && !modalOpen()) goTab('cal'); });
 
 function countAtt(ev, list){
   const a = ev.attendance || {};
@@ -1087,20 +1093,23 @@ $('bulkDelBtn').onclick = () => {
 };
 
 /* ---------- 日別モーダル ---------- */
-// スマホの戻るボタンでモーダルを閉じられるよう、開くときに履歴を1つ積む
-let modalHist = false;
+// スマホの戻るボタン対策：モーダル表示中かカレンダー以外のタブのときは履歴を1つ積んでおき、
+// 戻るボタンで「モーダルを閉じる → カレンダーへ戻る」の順に処理する
+function modalOpen(){ return !$('modal').classList.contains('hidden'); }
+function needGuard(){ return modalOpen() || (S.auth && S.tab !== 'cal'); }
+function syncGuard(){ if (needGuard() && !history.state?.guard) history.pushState({guard:1}, ''); }
 // 編集中なら閉じてよいか確認する
 const confirmLeave = () => !S.editing || confirm('編集中の内容は保存されません。閉じますか？');
 function tryClose(){ if (confirmLeave()) closeModal(); }
-function showModal(){ $('modal').classList.remove('hidden'); if (!modalHist){ history.pushState({modal:1}, ''); modalHist = true; } }
+function showModal(){ $('modal').classList.remove('hidden'); syncGuard(); }
 window.addEventListener('popstate', () => {
-  if (!modalHist) return;
-  // 編集中は確認し、キャンセルなら履歴を積み直してモーダルを残す
-  if (!confirmLeave()){ history.pushState({modal:1}, ''); return; }
-  modalHist = false; closeModal();
+  if (modalOpen()) { if (confirmLeave()) closeModal(); }
+  else if (S.auth && S.tab !== 'cal') goTab('cal');
+  else { history.back(); return; }  // 閉じるものがなければ本来の「戻る」
+  syncGuard();
 });
 function openDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; renderDay(date); showModal(); }
-function closeModal(keepHist){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; if (modalHist && !keepHist){ modalHist = false; history.back(); } }
+function closeModal(){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; }
 $('modal').onclick = e => { if (e.target.id === 'modal') tryClose(); };
 
 // 出欠は自分の子／指導者本人(とマスター)のみ回答できる
@@ -2233,7 +2242,7 @@ function renderBell(){
     }
   }
 }
-function openNotices(){ closeModal(true); S.noticeOpen = true; renderNotices(); showModal(); }
+function openNotices(){ closeModal(); S.noticeOpen = true; renderNotices(); showModal(); }
 function renderNotices(){
   const list = unanswered(), u = me();
   const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length, todo = dutyTodo();
