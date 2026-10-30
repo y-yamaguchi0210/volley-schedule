@@ -988,7 +988,7 @@ function renderCal(){
     const d = new Date(start); d.setDate(start.getDate() + i);
     if (vlist && d.getMonth() !== m) continue;
     const key = ymd(d), dow = d.getDay(), dayEvs = eventsOn(key);
-    const done = dayEvs.length && dayEvs.every(isOver);
+    const done = dayEvs.length ? dayEvs.every(isOver) : key < today;
     const mine = done ? '' : myAttState(dayEvs);
     const evs = dayEvs.map(e => {
       const t = typeOf(e);
@@ -1387,7 +1387,7 @@ function renderAtt(){
   for (let i = 0; i < weeks * 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(needsAtt), open = attOpen(key);
-    const done = evs.length && !open.length;
+    const done = evs.length ? !open.length : key < today;
     const saved = savedAtt(kid, open.length ? open : evs);
     const v = open.length && key in map ? map[key] : saved, changed = open.length && key in map && map[key] !== saved;
     const items = evs.map(e => `<div class="ev" style="--c:${typeOf(e).c}"><b>${esc(evLabel(e))}</b>${e.type !== 'off' ? evTime(e) : ''}</div>`).join('')
@@ -1599,7 +1599,7 @@ function renderDuty(){
   for (let i = 0; i < weeks * 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(tabEv);
-    const done = evs.length && evs.every(isOver), can = pick && wishable(key);
+    const done = evs.length ? evs.every(isOver) : key < today, can = pick && wishable(key);
     const items = evs.map(e => {
       const ws = dutyWishers(e), shown = dutyShown(e), mine = fixedDuty(e, uid), ca = coachAvail(e);
       return `<div class="ev" style="--c:${typeOf(e).c}">
@@ -1670,7 +1670,7 @@ function renderDutySet(){
   for (let i = 0; i < weeks * 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
     const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(isDutyEv);
-    const done = evs.length && evs.every(isOver);
+    const done = evs.length ? evs.every(isOver) : key < today;
     const items = evs.map(e => {
       const dr = draftOf(e), ch = !isOver(e) && !sameDuty(dr, fixedOf(e)), ws = dutyWishers(e), ca = coachAvail(e);
       return `<div class="ev" style="--c:${typeOf(e).c}">
