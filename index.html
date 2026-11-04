@@ -23,10 +23,13 @@ window.FIREBASE_CONFIG = {
   messagingSenderId: "766912111492",
   appId: "1:766912111492:web:4449455fd0a4d7fbe433d1"
 };
+/* スマホ通知の鍵(README.md の「引率・車出しの回答期限とスマホ通知」を参照)。空のままだとスマホ通知はオンにできません */
+window.FCM_VAPID_KEY = "";
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <style>
 :root{
   --bg:#f5f6f8;--card:#fff;--text:#1d2330;--muted:#6b7280;--line:#e3e6eb;--accent:#2563eb;
@@ -311,7 +314,8 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- 出欠確認(子供の出欠をカレンダーで入力) -->
   <section id="view-att" class="hidden">
-    <div class="banner">お子さんの出欠を入力します。日付をタップするたびに「参加 → 不参加 → 未回答」と切り替わります。選び終わったら「決定」を押してください。入力した内容はカレンダーに反映されます。</div>
+    <div id="attDl" class="masterOnly"></div>
+    <div class="banner notMaster">お子さんの出欠を入力します。日付をタップするたびに「参加 → 不参加 → 未回答」と切り替わります。選び終わったら「決定」を押してください。入力した内容はカレンダーに反映されます。</div>
     <div id="attNone" class="card meta hidden">家庭情報に自分の子供が登録されていると、ここで出欠を入力できます。「アカウント設定」で自分の名前を選択してください(子供がいない場合は入力はありません)。</div>
     <div id="attMain">
       <div class="calbar">
@@ -384,7 +388,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   <section id="view-family" class="hidden">
     <div class="card">
       <h3>家庭情報<span id="famCount"></span></h3>
-      <div class="meta">登録した親族(保護者)は、大会・練習試合の「保護者の引率・車出し」の選択肢になります。</div>
+      <div class="meta">登録した親族(指導者を含む)は、大会・練習試合の「保護者の引率・車出し」の選択肢になります。</div>
       <ul class="list" id="famList"></ul>
       <div id="famEdit"></div>
       <div id="famLoose"></div>
@@ -421,6 +425,11 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
       </div>
       <div class="err" id="sMsg"></div>
       <div class="actions"><button class="primary" id="sSave">保存</button></div>
+    </div>
+    <div class="card notMaster" style="max-width:560px;margin-top:16px">
+      <h3>スマホ通知</h3>
+      <p class="meta">大会・練習試合の引率・車出しが未回答のとき、回答期限の前日にこの端末へ通知します。端末ごとに設定が必要です。</p>
+      <div id="pushBox"></div>
     </div>
     <div class="card" style="max-width:560px;margin-top:16px">
       <h3>パスワードの変更</h3>
@@ -834,7 +843,7 @@ $('authForm').onsubmit = async e => {
     }
   } catch (err) { $('authErr').textContent = AUTH_ERR[err.code] || ('エラー: ' + (err.message || err.code)); }
 };
-$('logoutBtn').onclick = () => { if (confirm('ログアウトしますか？')) store.signOut(); };
+$('logoutBtn').onclick = async () => { if (!confirm('ログアウトしますか？')) return; await removePushDoc(); store.signOut(); };
 
 store.onAuth(a => { S.lastAuth = a; if (!S.joining) handleAuth(a); });
 function handleAuth(a){
@@ -923,7 +932,8 @@ function render(){
   for (const t of ['cal', 'members', 'att', 'dutyset', 'duty', 'family', 'dutycount', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === S.tab));
   $('bellBtn').classList.toggle('hidden', !inApp);
-  if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; return; }
+  if (!inApp) { renderAuth(); closeModal(); S.noticeShown = false; S.pushSynced = false; return; }
+  if (me() && !S.pushSynced) { S.pushSynced = true; syncPush().catch(err => console.warn('push', err)); }
   if (S.tab === 'cal') renderCal();
   if (S.tab === 'members' && !S.editUser) renderMembers();  // 編集中は入力が消えないよう再描画しない
   if (S.tab === 'att') renderAtt();
@@ -1109,7 +1119,7 @@ window.addEventListener('popstate', () => {
   syncGuard();
 });
 function openDay(date){ S.openDate = date; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; renderDay(date); showModal(); }
-function closeModal(){ $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; }
+function closeModal(){ S.carRows = null; $('modal').classList.add('hidden'); S.openDate = null; S.editing = false; S.noticeOpen = false; S.dutyOpen = false; }
 $('modal').onclick = e => { if (e.target.id === 'modal') tryClose(); };
 
 // 出欠は自分の子／指導者本人(とマスター)のみ回答できる
@@ -1181,7 +1191,7 @@ function renderDay(date){
   $('closeM').onclick = () => tryClose();
   if ($('addEv')) $('addEv').onclick = () => editEvent(null, date);
   // 当番希望と、希望から決めた当番はコピーしない
-  const setClip = list => { S.clip = list.map(({id, attendance, escort, dutyWish, coachOk, dutyUid, dutyRole, dutyDraft, date, ...rest}) => dutyUid ? {...rest, duty:[]} : rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
+  const setClip = list => { S.clip = list.map(({id, attendance, escort, escortDeadline, dutyWish, coachOk, dutyUid, dutyRole, dutyDraft, date, ...rest}) => dutyUid ? {...rest, duty:[]} : rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
   $('modalBody').querySelectorAll('[data-copy]').forEach(b => b.onclick = () => setClip([S.events.find(e => e.id === b.dataset.copy)]));
   if ($('copyAll')) $('copyAll').onclick = () => setClip(evs);
   $('modalBody').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editEvent(S.events.find(e => e.id === b.dataset.edit), date));
@@ -1211,20 +1221,41 @@ function renderDay(date){
   // 引率・車出しの入力(変更したらすぐ保存)
   $('modalBody').querySelectorAll('.escrow').forEach(row => {
     const sync = () => {
-      const car = row.querySelector('[data-car]').value;
-      row.querySelector('[data-seats]').disabled = car !== 'yes';
+      const yes = row.querySelector('[data-car]').value === 'yes', list = [...row.querySelectorAll('[data-seats]')];
+      list.forEach(i => i.disabled = !yes);
+      // 入力済みの車があるときだけ「車を追加」を出す
+      row.querySelector('[data-caradd]').classList.toggle('hidden', !yes || list.some(i => !(parseInt(i.value) > 0)));
     };
     sync();
-    row.querySelectorAll('input,select').forEach(inp => inp.onchange = async () => {
-      sync();
+    const save = async () => {
       const ev = S.events.find(x => x.id === row.dataset.ev), fam = families().find(f => f.key === row.dataset.fam);
       const who = [...row.querySelectorAll('[data-who]:checked')].map(c => c.value);
       const other = splitNames(row.querySelector('[data-other]').value).join('、');
       const car = row.querySelector('[data-car]').value;
-      const seats = car === 'yes' ? Math.max(0, parseInt(row.querySelector('[data-seats]').value) || 0) : 0;
-      await store.update('events', ev.id, {['escort.' + fam.key]: {who, other, car, seats, ...stamp()}});
-      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `あり(子供${seats}人)` : car === 'no' ? 'なし' : '未回答'}」に変更`);
-    });
+      // 2台目以降の空欄は保存しない
+      const carSeats = car !== 'yes' ? [] : [...row.querySelectorAll('[data-seats]')].map(i => Math.max(0, parseInt(i.value) || 0)).filter((v, i) => i === 0 || v > 0);
+      const seats = carSeats.reduce((a, b) => a + b, 0);
+      if (car !== 'yes') delete S.carRows?.[ev.id + '|' + fam.key];
+      await store.update('events', ev.id, {['escort.' + fam.key]: {who, other, car, seats, carSeats, ...stamp()}});
+      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `${carSeats.length}台(子供${seats}人)` : car === 'no' ? 'なし' : '未回答'}」に変更`);
+    };
+    const saveNow = () => save().catch(saveErr);
+    row.querySelectorAll('input,select').forEach(inp => inp.onchange = () => { sync(); return saveNow(); });
+    row.querySelectorAll('[data-seats]').forEach(inp => inp.oninput = sync);
+    // 行を増減して保存する(入力中の人数も一緒に保存)
+    const setRows = async n => {
+      (S.carRows ||= {})[row.dataset.ev + '|' + row.dataset.fam] = n;
+      await saveNow();
+      if (S.openDate === date && !S.editing && !S.noticeOpen) renderDay(date);
+    };
+    // 人数を入力した直後に押しても押下が失われないよう、入力欄の確定(再描画)より先に mousedown で処理する
+    const press = (b, fn) => { b.onmousedown = ev => { ev.preventDefault(); fn(); }; b.onclick = ev => { if (ev.detail === 0) fn(); }; };
+    press(row.querySelector('[data-caradd]'), () => setRows(row.querySelectorAll('[data-seats]').length + 1));
+    row.querySelectorAll('[data-carrm]').forEach(b => press(b, () => {
+      const n = row.querySelectorAll('[data-seats]').length - 1;
+      b.parentElement.remove();
+      setRows(n);
+    }));
   });
 }
 
@@ -1234,8 +1265,17 @@ const splitNames = s => String(s || '').split(/[、,，・\s]+/).map(x => x.trim
 // 手入力欄の内容(以前に選択された祖父・祖母なども含める)
 const escortOther = (cur, opts = ESCORTS) => [...(cur.who || []).filter(w => !opts.includes(w)), ...splitNames(cur.other)];
 const escortCount = (cur, opts = ESCORTS) => (cur.who || []).filter(w => opts.includes(w)).length + escortOther(cur, opts).length;
-// 引率の選択肢：家庭情報に登録された親族(保護者)、未登録なら母・父
-const escortOpts = f => { const r = (householdOf(f)?.relatives || []).filter(x => x.role !== 'coach').map(x => x.rel); return r.length ? [...new Set(r)] : ESCORTS; };
+// 続柄だけを取り出す(「山口(父)」→「父」。「祖母(父方)」のような区別はそのまま)
+const escortRel = (h, rel) => {
+  const s = String(rel || '').replace(/（/g, '(').replace(/）/g, ')').trim();
+  return h?.surname && s.startsWith(h.surname) ? s.slice(h.surname.length).replace(/^[\s(]+|[\s)]+$/g, '') || s : s;
+};
+// 引率の選択肢：家庭情報に登録された親族(監督・コーチも含む)の続柄、未登録なら母・父
+const escortOpts = f => { const h = householdOf(f), r = (h?.relatives || []).map(x => escortRel(h, x.rel)).filter(Boolean); return r.length ? [...new Set(r)] : ESCORTS; };
+const fmtDay = key => { const d = new Date(key + 'T00:00'); return `${d.getMonth()+1}/${d.getDate()}(${'日月火水木金土'[d.getDay()]})`; };
+const escortAnswered = (e, f) => !!e.escort?.[f.key]?.at;
+// 家庭が出す車ごとの乗車人数(1台だけの以前の回答は seats をそのまま1台分として扱う)
+const escortCars = cur => cur.car !== 'yes' ? [] : cur.carSeats?.length ? cur.carSeats : [cur.seats || 0];
 const hasEscort = e => e.type === 'match' || e.type === 'tournament';
 // 兄弟姉妹(メンバー登録の兄弟設定、または同じ保護者アカウントに紐づく子)は1家族にまとめて連名表示
 function families(){
@@ -1261,22 +1301,25 @@ function escortTable(e){
   const adults = fams.reduce((n, f) => n + escortCount(es[f.key] || {}, escortOpts(f)), 0);
   // 入力欄はマスターには全家庭、それ以外は自分の家庭のみ表示
   const rows = isMaster() ? fams : fams.filter(f => f.kids.some(k => mine.includes(k.id)));
-  const cars = fams.filter(f => es[f.key]?.car === 'yes');
-  const seats = cars.reduce((n, f) => n + (es[f.key].seats || 0), 0);
+  const cars = fams.reduce((n, f) => n + escortCars(es[f.key] || {}).length, 0);
+  const seats = fams.reduce((n, f) => n + escortCars(es[f.key] || {}).reduce((a, b) => a + b, 0), 0);
   const going = kids().filter(k => att[k.id]?.v === 'o').length;
   return `<h4>保護者の引率・車出し</h4>
-    <div class="meta">引率 大人${adults}人 ／ 車 ${cars.length}台・子供 ${seats}人乗車可(出席の子供 ${going}人)
+    ${e.escortDeadline ? `<div class="meta">⏰ 回答期限：<b>${fmtDay(e.escortDeadline)}</b>${e.escortDeadline < ymd(new Date()) ? ' <b style="color:var(--ng)">期限を過ぎています</b>' : ''}</div>` : ''}
+    <div class="meta">引率 大人${adults}人 ／ 車 ${cars}台・子供 ${seats}人乗車可(出席の子供 ${going}人)
       ${seats < going ? ` <b style="color:var(--ng)">あと${going - seats}人分足りません</b>` : ''}</div>
     ${rows.map(f => {
       const cur = es[f.key] || {}, my = f.kids.some(k => mine.includes(k.id)), opts = escortOpts(f), h = householdOf(f);
+      const carList = escortCars(cur), carN = cur.car === 'yes' ? Math.max(carList.length, S.carRows?.[e.id + '|' + f.key] || 1) : 1;
       return `<div class="escrow ${my?'mine':''}" data-ev="${e.id}" data-fam="${f.key}">
         <div class="escname">${my?'<span class="star">★</span>':''}${h ? `${esc(h.surname)}家 <span class="meta">(${esc(f.kids.map(k => k.name).join('・'))})</span>` : `${esc(famName(f))} <span class="meta">の家族</span>`}</div>
         <div class="chips">${opts.map(w => `<label><input type="checkbox" data-who value="${esc(w)}" ${(cur.who||[]).includes(w)?'checked':''}>${esc(w)}</label>`).join('')}
           <input data-other value="${esc(escortOther(cur, opts).join('、'))}" placeholder="その他(例：祖母、叔父)" style="width:170px"></div>
         <div class="escar">🚗
           <select data-car style="width:auto"><option value="">車出し：未回答</option><option value="yes" ${cur.car==='yes'?'selected':''}>出せる</option><option value="no" ${cur.car==='no'?'selected':''}>出せない</option></select>
-          子供<input type="number" data-seats min="0" max="9" value="${cur.seats || ''}" style="width:60px">人乗せられる
         </div>
+        ${[...Array(carN)].map((_, i) => `<div class="escar" style="margin-top:4px">${i + 1}台目 子供<input type="number" data-seats min="0" max="9" value="${carList[i] || ''}" style="width:60px">人乗せられる${i ? ` <button type="button" data-carrm="${i}" title="この車を削除">✕</button>` : ''}</div>`).join('')}
+        <button type="button" data-caradd class="hidden" style="margin-top:6px">＋ 車を追加</button>
         <div class="meta">${cur.at ? `${esc(cur.byName)} ${fmtAt(cur.at)}` : '未回答'}</div>
       </div>`;
     }).join('')}`;
@@ -1295,12 +1338,13 @@ function escortSummary(e){
     f.kids.forEach(k => tot[att[k.id]?.v || 'n']++);
     const who = [...(cur.who || []).filter(w => opts.includes(w)), ...escortOther(cur, opts)];
     tot.adults += who.length;
-    if (cur.car === 'yes') { tot.cars++; tot.seats += cur.seats || 0; }
+    const carList = escortCars(cur), carTotal = carList.reduce((a, b) => a + b, 0);
+    tot.cars += carList.length; tot.seats += carTotal;
     return `<tr><td>${esc(h ? h.surname + '家' : famName(f))}</td>
       <td style="text-align:left">${f.kids.map(k => `${esc(k.name)} <b>${mark(att[k.id]?.v)}</b>`).join('<br>')}</td>
       <td>${esc(who.join('・')) || (cur.at ? 'なし' : '<span class="meta">未回答</span>')}</td>
-      <td>${cur.car === 'yes' ? '出せる' : cur.car === 'no' ? '出せない' : '<span class="meta">未回答</span>'}</td>
-      <td>${cur.car === 'yes' ? (cur.seats || 0) + '人' : ''}</td></tr>`;
+      <td>${cur.car === 'yes' ? `出せる${carList.length > 1 ? `(${carList.length}台)` : ''}` : cur.car === 'no' ? '出せない' : '<span class="meta">未回答</span>'}</td>
+      <td>${cur.car === 'yes' ? carTotal + '人' + (carList.length > 1 ? `(${carList.join('+')})` : '') : ''}</td></tr>`;
   }).join('');
   return btn + `<div class="dcWrap"><table class="dcTbl">
     <tr><th>家庭</th><th>子どもの出欠</th><th>引率</th><th>車出し</th><th>乗車可</th></tr>${rows}
@@ -1309,10 +1353,10 @@ function escortSummary(e){
 }
 
 /* ---------- 出欠確認(子供の出欠をカレンダーで入力) ---------- */
-// 出欠確認タブは全アカウントに表示(入力できるのは自分の子供のみ)
+// 出欠確認タブは全アカウントに表示(保護者は自分の子供の出欠を入力、マスターは引率・車出しの回答期限を設定)
 const canAttTab = () => isMaster() || !!me();
-// 入力できる子供：保護者は自分の子、マスターは全員
-const attKids = () => isMaster() ? kids() : kids().filter(k => myMemberIds().includes(k.id));
+// 入力できる子供：自分の子のみ(マスターは入力しない)
+const attKids = () => isMaster() ? [] : kids().filter(k => myMemberIds().includes(k.id));
 const attN = (e, v) => kids().filter(k => e.attendance?.[k.id]?.v === v).length;
 const attOpen = key => eventsOn(key).filter(e => needsAtt(e) && !isOver(e));
 const ATT_NEXT = {'': 'o', o: 'x', x: '', m: 'o'};
@@ -1373,20 +1417,52 @@ async function saveAtt(){
   } catch (err) { saveErr(err); }
   render();
 }
+// 引率・車出しの回答期限の設定(マスターの出欠確認タブ)
+function renderEscortDl(){
+  if ($('attDl').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;  // 入力中は消さない
+  const today = ymd(new Date()), draft = (S.dlDraft ||= {}), fams = families();
+  const evs = S.events.filter(e => hasEscort(e) && !isOver(e)).sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''));
+  $('attDl').innerHTML = `<div class="banner">大会・練習試合ごとに、引率・車出しの回答期限を設定します。期限の前日18時台に、未回答の家庭のアカウントへスマホ通知を送ります。</div>
+    <div class="card"><h3>引率・車出しの回答期限</h3>
+    <ul class="list">${evs.map(e => {
+      const left = fams.filter(f => !escortAnswered(e, f)).length;
+      return `<li style="flex-wrap:wrap"><span style="flex:1 1 220px"><b>${fmtDay(e.date)}</b> <span class="meta">${typeOf(e).label}</span> ${esc(evLabel(e))}
+        <br><span class="meta">回答期限：${e.escortDeadline ? fmtDay(e.escortDeadline) : '未設定'} ／ 未回答 ${left}家庭(全${fams.length}家庭)</span></span>
+        <input type="date" data-dl="${e.id}" value="${esc(draft[e.id] ?? e.escortDeadline ?? '')}" min="${today}" max="${e.date}" style="width:auto">
+        <button class="primary" data-dlsave="${e.id}">設定</button>
+        ${e.escortDeadline ? `<button data-dlclr="${e.id}">解除</button>` : ''}</li>`;
+    }).join('') || '<li class="meta">これからの大会・練習試合はありません</li>'}</ul></div>`;
+  $('attDl').querySelectorAll('[data-dl]').forEach(inp => inp.oninput = () => draft[inp.dataset.dl] = inp.value);
+  const saveDl = async (e, v) => {
+    try {
+      await store.update('events', e.id, {escortDeadline:v});
+      delete draft[e.id];
+      log(`${e.date} ${evLabel(e)}：引率・車出しの回答期限を${v ? ` ${fmtDay(v)} に設定` : '解除'}`);
+    } catch (err) { saveErr(err); }
+    document.activeElement?.blur?.(); renderEscortDl();
+  };
+  $('attDl').querySelectorAll('[data-dlsave]').forEach(b => b.onclick = () => {
+    const e = S.events.find(x => x.id === b.dataset.dlsave), v = $('attDl').querySelector(`[data-dl="${e.id}"]`).value;
+    if (!v) return alert('回答期限の日付を入力してください');
+    if (v < ymd(new Date())) return alert('回答期限は今日以降の日付にしてください');
+    if (v > e.date) return alert('回答期限は予定の日までの日付にしてください');
+    saveDl(e, v);
+  });
+  $('attDl').querySelectorAll('[data-dlclr]').forEach(b => b.onclick = () => saveDl(S.events.find(x => x.id === b.dataset.dlclr), ''));
+}
 function renderAtt(){
+  if (isMaster()) { $('attNone').classList.add('hidden'); $('attMain').classList.add('hidden'); return renderEscortDl(); }
   const y = S.month.getFullYear(), m = S.month.getMonth(), ks = attKids(), kid = attKidId();
   $('attNone').classList.toggle('hidden', !!kid);
   $('attMain').classList.toggle('hidden', !kid);
   if (!kid) return;
   if (S.attPick && S.attPick.kid !== kid) S.attPick = null;
   $('attMonth').textContent = `${y}年 ${m+1}月`;
-  // 子供の切り替え：保護者はボタン(兄弟姉妹を1人ずつ)、マスターは全員から選択
+  // 子供の切り替え：兄弟姉妹を1人ずつボタンで
   const kname = k => `${esc(k.name)}${gradeOf(k) ? `(${esc(gradeOf(k))})` : ''}`;
   const todo = k => S.events.filter(e => needsAtt(e) && !isOver(e) && !e.attendance?.[k.id]).length;
-  const sibs = isMaster() ? [] : families().filter(f => f.kids.some(k => ks.includes(k))).flatMap(f => f.kids).filter(k => !ks.includes(k));
-  $('attKidBox').innerHTML = isMaster()
-    ? `<span class="meta">出欠を入力する子供</span> <select id="attKid" style="max-width:260px">${ks.map(k => `<option value="${k.id}" ${k.id === kid ? 'selected' : ''}>${kname(k)}</option>`).join('')}</select>`
-    : `${ks.length > 1 ? '<div class="meta" style="margin-bottom:4px">お子さんを切り替えて、1人ずつ回答してください</div>' : ''}
+  const sibs = families().filter(f => f.kids.some(k => ks.includes(k))).flatMap(f => f.kids).filter(k => !ks.includes(k));
+  $('attKidBox').innerHTML = `${ks.length > 1 ? '<div class="meta" style="margin-bottom:4px">お子さんを切り替えて、1人ずつ回答してください</div>' : ''}
       <div class="kidsw">${ks.map(k => `<button data-attkid="${k.id}" class="${k.id === kid ? 'on' : ''}">${kname(k)}${todo(k) ? ` <span class="badge">${todo(k)}</span>` : ''}</button>`).join('')}</div>
       ${sibs.length ? `<div class="meta" style="margin-top:6px">兄弟姉妹の ${esc(sibs.map(k => k.name).join('・'))} も入力するには、マスター権限の方に家庭情報への登録を依頼してください。</div>` : ''}`;
   const pickKid = id => {
@@ -1394,7 +1470,6 @@ function renderAtt(){
     if (!leaveAttOk()) { render(); return; }
     S.attKid = id; S.attPick = null; render();
   };
-  if ($('attKid')) $('attKid').onchange = () => pickKid($('attKid').value);
   $('attKidBox').querySelectorAll('[data-attkid]').forEach(b => b.onclick = () => pickKid(b.dataset.attkid));
   if ($('attGoSettings')) $('attGoSettings').onclick = ev => { ev.preventDefault(); if (leaveAttOk()) { S.attPick = null; S.tab = 'settings'; S.settingsDirty = false; render(); } };
   const map = S.attPick?.map || {}, n = new Set(attChanges().map(c => c.e.date)).size;
@@ -2052,6 +2127,7 @@ function renderSettings(){
       `<option value="${esc(o.key)}" ${cur && o.key === cur.key ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
   }
   $('sNotify').checked = u.notify !== false;
+  renderPushBox();
   showFamLink();
   // パスワードを忘れた場合：登録メールアドレスに再設定URLを送る(アカウント名だけの登録はメールを受け取れない)
   const mail = S.auth.email || '', canMail = mail.includes('@') && !mail.endsWith(LOGIN_DOMAIN);
@@ -2228,25 +2304,95 @@ $('dSave').onclick = async () => {
 function renderBell(){
   const list = unanswered(), due = list.filter(x => x.due);
   const reqs = isMaster() ? requests() : [], link = needLink(), todo = dutyTodo();
-  const n = list.length + reqs.length + (link ? 1 : 0) + todo.length;
+  const esTodo = escortTodo();
+  const n = list.length + reqs.length + (link ? 1 : 0) + todo.length + esTodo.length;
   $('bellCount').textContent = n;
   $('bellCount').classList.toggle('hidden', !n);
   // ログイン直後、締切(前日)を迎えた未回答・子供の未選択・承認待ちの申請があれば自動で表示＋ブラウザ通知
   if (!S.noticeShown && S.members.length && me() && S.loaded?.events) {
     S.noticeShown = true;
-    if (link || reqs.length || todo.length) openNotices();
+    const askPush = pushAskable() && !lsGet(PUSH_ASKED);
+    if (askPush) lsSet(PUSH_ASKED, '1');
+    if (link || reqs.length || todo.length || askPush || esTodo.some(x => x.due)) openNotices();
     else if (due.length) {
       openNotices();
       if ('Notification' in window && Notification.permission === 'granted')
-        new Notification('WINGS月間予定表', {body:`出欠が未回答の予定が${due.length}件あります`});
+        localNote('WINGS月間予定表', `出欠が未回答の予定が${due.length}件あります`);
     }
   }
+}
+/* ---------- スマホ通知 ---------- */
+// 自分の家庭が未回答で、回答期限が設定された引率・車出し。due = 期限の前日以降
+function escortTodo(){
+  if (isMaster()) return [];
+  const mine = myMemberIds(), tm = new Date(); tm.setDate(tm.getDate() + 1);
+  const fams = families().filter(f => f.kids.some(k => mine.includes(k.id)));
+  return S.events.filter(e => hasEscort(e) && e.escortDeadline && !isOver(e) && fams.some(f => !escortAnswered(e, f)))
+    .map(e => ({e, due: e.escortDeadline <= ymd(tm)}))
+    .sort((a, b) => a.e.escortDeadline.localeCompare(b.e.escortDeadline));
+}
+const PUSH_DOC = 'wingsPushDoc', PUSH_OFF = 'wingsPushOff', PUSH_ASKED = 'wingsPushAsked';
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+const pushReady = () => USE_FIREBASE && !!window.FCM_VAPID_KEY && !!firebase.messaging && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+// iPhone はホーム画面に追加したアプリからだけ通知を受け取れる
+const iosNeedsHome = () => /iP(hone|ad|od)/.test(navigator.userAgent) && !navigator.standalone && !('PushManager' in window);
+const pushAskable = () => !isMaster() && !!window.FCM_VAPID_KEY && (iosNeedsHome() || (pushReady() && Notification.permission === 'default'));
+const IOS_GUIDE = 'iPhoneで通知を受け取るには、Safariの共有メニューから「ホーム画面に追加」し、ホーム画面のアイコンから開いてオンにしてください(iOS 16.4以降)。';
+// 端末の通知先をFirestoreに登録する(通知を許可済みでオフにしていない端末のみ)
+async function syncPush(){
+  if (!pushReady() || isMaster() || !S.auth || Notification.permission !== 'granted' || lsGet(PUSH_OFF)) return false;
+  const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+  await navigator.serviceWorker.ready;
+  const messaging = firebase.messaging();
+  const token = await messaging.getToken({vapidKey:window.FCM_VAPID_KEY, serviceWorkerRegistration:reg});
+  if (!token) return false;
+  const id = token.replace(/[^\w-]/g, '_');
+  await store.set('pushTokens', id, {uid:S.auth.uid, token, url:location.origin + location.pathname, at:Date.now()});
+  lsSet(PUSH_DOC, id);
+  // アプリを開いている間に届いた通知も表示する
+  if (!S.pushBound) { S.pushBound = true; messaging.onMessage(p => localNote(p.notification?.title || 'WINGS月間予定表', p.notification?.body || '')); }
+  return true;
+}
+async function enablePush(){
+  lsSet(PUSH_OFF, null);
+  try {
+    if (await Notification.requestPermission() === 'granted') await syncPush();
+  } catch (err) { console.warn('push', err); alert('通知の登録に失敗しました：' + (err?.message || err)); }
+}
+// この端末を通知先から外す(ログアウト・オフのとき)
+async function removePushDoc(){
+  const id = lsGet(PUSH_DOC);
+  if (!id) return;
+  lsSet(PUSH_DOC, null);
+  await store.remove('pushTokens', id).catch(err => console.warn('push', err));
+}
+async function localNote(title, body){
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration().catch(() => null);
+    if (reg) await reg.showNotification(title, {body, icon:'icon-192.png'});
+    else new Notification(title, {body});
+  } catch (err) { console.warn('notify', err); }
+}
+function renderPushBox(){
+  const box = $('pushBox'), on = pushReady() && Notification.permission === 'granted' && !!lsGet(PUSH_DOC) && !lsGet(PUSH_OFF);
+  box.innerHTML = iosNeedsHome() ? `<div class="meta">${IOS_GUIDE}</div>`
+    : !USE_FIREBASE || !window.FCM_VAPID_KEY ? '<div class="meta">スマホ通知はまだ準備中です。</div>'
+    : !pushReady() ? '<div class="meta">この端末・ブラウザはスマホ通知に対応していません。</div>'
+    : Notification.permission === 'denied' ? '<div class="meta">この端末で通知がブロックされています。ブラウザまたは端末の設定で通知を許可してください。</div>'
+    : on ? '<div class="meta">✅ この端末で受け取ります</div><div class="actions"><button id="pushOff">オフにする</button></div>'
+    : '<div class="actions" style="justify-content:flex-start"><button class="primary" id="pushOn">この端末で通知を受け取る</button></div>';
+  if ($('pushOn')) $('pushOn').onclick = async () => { $('pushOn').disabled = true; await enablePush(); renderPushBox(); };
+  if ($('pushOff')) $('pushOff').onclick = async () => { lsSet(PUSH_OFF, '1'); await removePushDoc(); renderPushBox(); };
 }
 function openNotices(){ closeModal(); S.noticeOpen = true; renderNotices(); showModal(); }
 function renderNotices(){
   const list = unanswered(), u = me();
-  const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length, todo = dutyTodo();
+  const noLink = needLink(), reqs = isMaster() ? requests() : [], waiting = (u?.pendingChildIds || []).length, todo = dutyTodo(), esTodo = escortTodo();
   $('modalBody').innerHTML = `<h3>🔔 お知らせ</h3>
+    ${pushAskable() ? `<div class="notice" style="cursor:default">📲 <b>スマホ通知をオンにしてください</b><br>
+      <span class="meta">${iosNeedsHome() ? IOS_GUIDE : '引率・車出しの回答期限の前日にお知らせします。下の「この端末で通知を受け取る」を押してください。'}</span></div>` : ''}
+    ${esTodo.map(({e, due}) => `<div class="notice ${due ? 'due' : ''}" data-date="${e.date}">${due ? '<b style="color:var(--ng)">【期限間近】</b>' : ''}🚗 ${fmtDay(e.date)} <b>${esc(evLabel(e))}</b> の引率・車出しが未回答<br><span class="meta">回答期限：${fmtDay(e.escortDeadline)}</span></div>`).join('')}
     ${todo.map(k => `<div class="notice due" data-dmonth="${k}">🧺 <b>${+k.slice(5)}月の${DM().tab}が未入力です</b><br>
       <span class="meta">${DM().can}を選んで「決定」、ない場合は「${DM().ngLabel}」を押してください。</span></div>`).join('')}
     ${noLink ? `<div class="banner">⚠ ${u.role==='coach'?'指導者名簿の自分':'自分の子供'}がまだ選択されていません。「アカウント設定」で選択してください(選択すると出欠を回答できます)。
@@ -2256,7 +2402,7 @@ function renderNotices(){
       ${reqs.map(r => `<div class="notice" style="cursor:default">${esc(r.u.name)} さんが <b>${esc(r.k.name)}</b> を選択したいと申請しています
         <span class="meta">(${esc(takenBy(r.k.id).filter(o => o.id !== r.u.id).map(o => o.name).join('・') || 'なし')}さんが選択済み)</span>
         <div class="actions" style="margin-top:4px">${reqButtons(r)}</div></div>`).join('')}` : ''}
-    ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length || todo.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
+    ${list.length ? `<p class="meta">出欠が未回答の予定です。前日までに回答してください。</p>` : (noLink || reqs.length || todo.length || esTodo.length ? '' : '<p>未回答の出欠はありません 👍</p>')}
     ${list.map(({e, m, due}) => {
       const d = new Date(e.date + 'T00:00');
       return `<div class="notice ${due?'due':''}" data-date="${e.date}" data-mem="${m.id}">
@@ -2269,7 +2415,7 @@ function renderNotices(){
   $('nClose').onclick = () => tryClose();
   if ($('nSettings')) $('nSettings').onclick = () => { closeModal(); S.tab = 'settings'; S.settingsDirty = false; render(); };
   bindReqButtons($('modalBody'));
-  if ($('nPerm')) $('nPerm').onclick = () => Notification.requestPermission().then(() => renderNotices());
+  if ($('nPerm')) $('nPerm').onclick = () => enablePush().then(() => renderNotices());
   // 子供の出欠 → 出欠確認タブ、指導者の出欠 → その日の予定
   $('modalBody').querySelectorAll('.notice[data-date]').forEach(n => n.onclick = () => {
     const m = S.members.find(x => x.id === n.dataset.mem);
