@@ -314,6 +314,19 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- 出欠確認(子供の出欠をカレンダーで入力) -->
   <section id="view-att" class="hidden">
+    <div class="card masterOnly" style="margin-bottom:10px">
+      <h3>当番希望日・指導可能日の回答期限</h3>
+      <label style="margin:0;color:var(--text);font-size:15px"><input type="checkbox" id="dutyOn" style="width:auto"> 「当番希望日」を保護者に、「指導可能日」を指導者に表示する</label>
+      <div class="meta" id="dutyOnMsg"></div>
+      <div id="dutyDlBox" class="hidden">
+        <label>回答期限(過ぎると自動で非表示になります)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="datetime-local" id="dutyDl" style="width:auto;min-width:190px">
+          <button class="primary" id="dutyDlSave">設定</button>
+          <button id="dutyDlClear">解除</button>
+        </div>
+      </div>
+    </div>
     <div id="attDl" class="masterOnly"></div>
     <div class="banner notMaster">お子さんの出欠を入力します。日付をタップするたびに「参加 → 不参加 → 未回答」と切り替わります。選び終わったら「決定」を押してください。入力した内容はカレンダーに反映されます。</div>
     <div id="attNone" class="card meta hidden">家庭情報に自分の子供が登録されていると、ここで出欠を入力できます。「アカウント設定」で自分の名前を選択してください(子供がいない場合は入力はありません)。</div>
@@ -354,19 +367,6 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
 
   <!-- 当番希望日 -->
   <section id="view-duty" class="hidden">
-    <div class="card masterOnly" style="margin-bottom:10px">
-      <label style="margin:0;color:var(--text);font-size:15px"><input type="checkbox" id="dutyOn" style="width:auto"> 「当番希望日」を保護者に、「指導可能日」を指導者に表示する</label>
-      <div class="meta" id="dutyOnMsg"></div>
-      <div id="dutyDlBox" class="hidden">
-        <label>回答の締切日時(過ぎると自動で非表示になります)</label>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input type="datetime-local" id="dutyDl" style="width:auto">
-          <button id="dutyDlSave">締切を設定</button>
-          <button id="dutyDlClear">締切なし</button>
-        </div>
-      </div>
-      <div class="meta">日付をタップすると「当番決め」で、その日の当番を編集できます。</div>
-    </div>
     <div class="banner notMaster"><span id="dutyGuide"></span><b id="dutyDlNote"></b></div>
     <div id="dutyBar" class="clipbar hidden"></div>
     <div class="calbar">
@@ -912,13 +912,13 @@ function render(){
   $('logoutBtn').classList.toggle('hidden', !inApp);
   $('who').textContent = inApp ? `${myName()} さん(${isMaster() ? 'マスター' : roleLabel(me())})でログイン中` : '';
   document.body.classList.toggle('is-master', isMaster());
-  // 当番希望日タブはマスターがオンにしたときだけ表示(マスターには常に表示)
+  // 当番希望日タブはマスターがオンにしたときだけ、保護者・指導者に表示(マスターには出さない)
   // 締切の時刻ちょうどに表示を切り替えるため、その時刻に再描画を予約
   if (inApp) dutyAutoOff();
   clearTimeout(S.dutyTimer);
   const dlLeft = inApp ? dutyDeadline() - Date.now() : 0;
   if (dlLeft > 0) S.dutyTimer = setTimeout(render, Math.min(dlLeft + 500, 2 ** 31 - 1));
-  const dutyVis = inApp && (isMaster() || dutyTabOn());
+  const dutyVis = inApp && !isMaster() && dutyTabOn();
   $('dutyTabBtn').classList.toggle('hidden', !dutyVis);
   $('dutyTabBtn').textContent = inApp ? DM().tab : '当番希望日';
   $('dutyTabBtn').classList.toggle('alert', inApp && dutyTodo().length > 0);
@@ -1455,8 +1455,16 @@ function renderEscortDl(){
   });
   $('attDl').querySelectorAll('[data-dlclr]').forEach(b => b.onclick = () => saveDl(S.events.find(x => x.id === b.dataset.dlclr), ''));
 }
+// 当番希望日・指導可能日の表示と回答期限の設定(マスターの回答期限タブ)
+function renderDutyCtl(){
+  const dl = dutyDeadline();
+  $('dutyOn').checked = dutyTabOn();
+  $('dutyOnMsg').textContent = dutyTabOn() ? `保護者・指導者に表示しています。${dl ? `(回答期限：${fmtDl(dl)})` : '(回答期限なし)'}` : '現在は非表示です。オンにすると回答期限を設定できます。';
+  $('dutyDlBox').classList.toggle('hidden', !dutyTabOn());
+  if (!S.dutyDlDirty) $('dutyDl').value = dl ? `${ymd(new Date(dl))}T${fmtAt(dl).split(' ')[1]}` : '';
+}
 function renderAtt(){
-  if (isMaster()) { $('attNone').classList.add('hidden'); $('attMain').classList.add('hidden'); return renderEscortDl(); }
+  if (isMaster()) { $('attNone').classList.add('hidden'); $('attMain').classList.add('hidden'); renderDutyCtl(); return renderEscortDl(); }
   const y = S.month.getFullYear(), m = S.month.getMonth(), ks = attKids(), kid = attKidId();
   $('attNone').classList.toggle('hidden', !!kid);
   $('attMain').classList.toggle('hidden', !kid);
@@ -1551,8 +1559,8 @@ $('dutyOn').onchange = async () => {
 $('dutyDl').oninput = () => S.dutyDlDirty = true;
 $('dutyDlSave').onclick = async () => {
   const t = $('dutyDl').value ? new Date($('dutyDl').value).getTime() : 0;
-  if (!t) { alert('締切日時を入力してください'); return; }
-  if (t <= Date.now()) { alert('締切日時は現在より後の日時にしてください'); return; }
+  if (!t) { alert('回答期限の日付と時間を入力してください'); return; }
+  if (t <= Date.now()) { alert('回答期限は現在より後の日時にしてください'); return; }
   try {
     await store.update('users', S.auth.uid, {dutyDeadline:t});
     S.dutyDlDirty = false;
@@ -1673,13 +1681,6 @@ const leaveDutyOk = () => !dutyChanges().length || confirm(`未確定の${DM().w
 function renderDuty(){
   const y = S.month.getFullYear(), m = S.month.getMonth(), uid = S.auth.uid, pick = canWish();
   $('dutyMonth').textContent = `${y}年 ${m+1}月`;
-  if (isMaster()) {
-    const dl = dutyDeadline();
-    $('dutyOn').checked = dutyTabOn();
-    $('dutyOnMsg').textContent = dutyTabOn() ? `保護者・指導者に表示しています。${dl ? `(${fmtDl(dl)} 締切)` : '(締切なし)'}` : '現在は非表示です(マスターにだけ見えています)。';
-    $('dutyDlBox').classList.toggle('hidden', !dutyTabOn());
-    if (!S.dutyDlDirty) $('dutyDl').value = dl ? `${ymd(new Date(dl))}T${fmtAt(dl).split(' ')[1]}` : '';
-  }
   const t = DM(), coach = coachMode();
   $('dutyGuide').textContent = coach ? '指導できる練習・練習試合・大会の日をタップして選び(複数可)、「決定」を押してください。回答はマスターに伝わります。'
     : '当番に入れる練習の日をタップして選び(複数可)、「決定」を押してください。回答をもとにマスターが当番を決め、確定した当番はカレンダーにも表示されます。';
@@ -1702,12 +1703,11 @@ function renderDuty(){
     const key = ymd(d), dow = d.getDay(), evs = eventsOn(key).filter(tabEv);
     const done = evs.length ? evs.every(isOver) : key < today, can = pick && wishable(key);
     const items = evs.map(e => {
-      const ws = dutyWishers(e), shown = dutyShown(e), mine = fixedDuty(e, uid), ca = coachAvail(e);
+      const ws = dutyWishers(e), shown = dutyShown(e), mine = fixedDuty(e, uid);
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
         ${evTime(e)}
         ${coach ? '' : `<div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人(未定)` : '<span class="meta">希望者なし</span>'}</div>`}
-        ${isMaster() && ca.length ? `<div class="duty">指導可:${ca.length}人</div>` : ''}
         ${pick && !isOver(e) && e[t.f]?.[uid] ? `<div class="wish">${t.done}</div>` : ''}
       </div>`;
     }).join('');
@@ -1715,12 +1715,8 @@ function renderDuty(){
       <span class="num">${d.getDate()}</span>${items}</div>`;
   }
   $('dutyGrid').innerHTML = html;
-  // 保護者・指導者はタップで選択、マスターはタップで「当番決め」のその日を開く
-  $('dutyGrid').querySelectorAll('.day').forEach(el => el.onclick = () => {
-    if (pick) return toggleDutyPick(el.dataset.date);
-    if (!isMaster()) return;
-    S.tab = 'dutyset'; render(); openDutyDay(el.dataset.date);
-  });
+  // 保護者・指導者はタップで選択
+  $('dutyGrid').querySelectorAll('.day').forEach(el => el.onclick = () => { if (pick) toggleDutyPick(el.dataset.date); });
 }
 /* ---------- 当番決め(マスターのみ) ---------- */
 // 当番希望日の回答はまず当番決めの「下書き」(dutyDraft)に反映し、マスターが「確定」したらカレンダーの当番(duty)に反映する
