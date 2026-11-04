@@ -926,7 +926,8 @@ function render(){
   if (!isMaster() && ['log', 'family', 'dutycount', 'dutyset'].includes(S.tab)) S.tab = 'cal';   // 更新履歴・家庭情報登録・当番決めはマスターのみ
   // 当番決めに未確定の変更があれば目立たせる
   $('dutySetTabBtn').classList.toggle('alert', inApp && isMaster() && draftChanges().length > 0);
-  // 出欠確認タブは全アカウントに表示
+  // 出欠確認タブは全アカウントに表示(マスターは回答期限の設定画面なので名称を変える)
+  $('attTabBtn').textContent = isMaster() ? '回答期限' : '出欠確認';
   $('attTabBtn').classList.toggle('hidden', !(inApp && canAttTab()));
   if (inApp && !canAttTab() && S.tab === 'att') { S.tab = 'cal'; S.attPick = null; }
   for (const t of ['cal', 'members', 'att', 'dutyset', 'duty', 'family', 'dutycount', 'log', 'settings']) $('view-' + t).classList.toggle('hidden', !inApp || S.tab !== t);
@@ -1273,6 +1274,10 @@ const escortRel = (h, rel) => {
 // 引率の選択肢：家庭情報に登録された親族(監督・コーチも含む)の続柄、未登録なら母・父
 const escortOpts = f => { const h = householdOf(f), r = (h?.relatives || []).map(x => escortRel(h, x.rel)).filter(Boolean); return r.length ? [...new Set(r)] : ESCORTS; };
 const fmtDay = key => { const d = new Date(key + 'T00:00'); return `${d.getMonth()+1}/${d.getDate()}(${'日月火水木金土'[d.getDay()]})`; };
+// 回答期限は 'YYYY-MM-DDTHH:mm' で保存。時間なしの以前の設定('YYYY-MM-DD')はその日いっぱいとして扱う
+const dlAt = v => v.length > 10 ? v.slice(0, 16) : v + 'T23:59';
+const fmtEsDl = v => fmtDay(v.slice(0, 10)) + (v.length > 10 ? ' ' + v.slice(11, 16) : '');
+const nowKey = () => { const d = new Date(); return ymd(d) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 const escortAnswered = (e, f) => !!e.escort?.[f.key]?.at;
 // 家庭が出す車ごとの乗車人数(1台だけの以前の回答は seats をそのまま1台分として扱う)
 const escortCars = cur => cur.car !== 'yes' ? [] : cur.carSeats?.length ? cur.carSeats : [cur.seats || 0];
@@ -1305,7 +1310,7 @@ function escortTable(e){
   const seats = fams.reduce((n, f) => n + escortCars(es[f.key] || {}).reduce((a, b) => a + b, 0), 0);
   const going = kids().filter(k => att[k.id]?.v === 'o').length;
   return `<h4>保護者の引率・車出し</h4>
-    ${e.escortDeadline ? `<div class="meta">⏰ 回答期限：<b>${fmtDay(e.escortDeadline)}</b>${e.escortDeadline < ymd(new Date()) ? ' <b style="color:var(--ng)">期限を過ぎています</b>' : ''}</div>` : ''}
+    ${e.escortDeadline ? `<div class="meta">⏰ 回答期限：<b>${fmtEsDl(e.escortDeadline)}</b>${dlAt(e.escortDeadline) < nowKey() ? ' <b style="color:var(--ng)">期限を過ぎています</b>' : ''}</div>` : ''}
     <div class="meta">引率 大人${adults}人 ／ 車 ${cars}台・子供 ${seats}人乗車可(出席の子供 ${going}人)
       ${seats < going ? ` <b style="color:var(--ng)">あと${going - seats}人分足りません</b>` : ''}</div>
     ${rows.map(f => {
@@ -1417,18 +1422,18 @@ async function saveAtt(){
   } catch (err) { saveErr(err); }
   render();
 }
-// 引率・車出しの回答期限の設定(マスターの出欠確認タブ)
+// 引率・車出しの回答期限の設定(マスターの回答期限タブ)
 function renderEscortDl(){
   if ($('attDl').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;  // 入力中は消さない
-  const today = ymd(new Date()), draft = (S.dlDraft ||= {}), fams = families();
+  const now = nowKey(), draft = (S.dlDraft ||= {}), fams = families();
   const evs = S.events.filter(e => hasEscort(e) && !isOver(e)).sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''));
   $('attDl').innerHTML = `<div class="banner">大会・練習試合ごとに、引率・車出しの回答期限を設定します。期限の前日18時台に、未回答の家庭のアカウントへスマホ通知を送ります。</div>
     <div class="card"><h3>引率・車出しの回答期限</h3>
     <ul class="list">${evs.map(e => {
       const left = fams.filter(f => !escortAnswered(e, f)).length;
       return `<li style="flex-wrap:wrap"><span style="flex:1 1 220px"><b>${fmtDay(e.date)}</b> <span class="meta">${typeOf(e).label}</span> ${esc(evLabel(e))}
-        <br><span class="meta">回答期限：${e.escortDeadline ? fmtDay(e.escortDeadline) : '未設定'} ／ 未回答 ${left}家庭(全${fams.length}家庭)</span></span>
-        <input type="date" data-dl="${e.id}" value="${esc(draft[e.id] ?? e.escortDeadline ?? '')}" min="${today}" max="${e.date}" style="width:auto">
+        <br><span class="meta">回答期限：${e.escortDeadline ? fmtEsDl(e.escortDeadline) : '未設定'} ／ 未回答 ${left}家庭(全${fams.length}家庭)</span></span>
+        <input type="datetime-local" data-dl="${e.id}" value="${esc(draft[e.id] ?? (e.escortDeadline ? dlAt(e.escortDeadline) : ''))}" min="${now}" max="${e.date}T23:59" style="width:auto;min-width:190px">
         <button class="primary" data-dlsave="${e.id}">設定</button>
         ${e.escortDeadline ? `<button data-dlclr="${e.id}">解除</button>` : ''}</li>`;
     }).join('') || '<li class="meta">これからの大会・練習試合はありません</li>'}</ul></div>`;
@@ -1437,15 +1442,15 @@ function renderEscortDl(){
     try {
       await store.update('events', e.id, {escortDeadline:v});
       delete draft[e.id];
-      log(`${e.date} ${evLabel(e)}：引率・車出しの回答期限を${v ? ` ${fmtDay(v)} に設定` : '解除'}`);
+      log(`${e.date} ${evLabel(e)}：引率・車出しの回答期限を${v ? ` ${fmtEsDl(v)} に設定` : '解除'}`);
     } catch (err) { saveErr(err); }
     document.activeElement?.blur?.(); renderEscortDl();
   };
   $('attDl').querySelectorAll('[data-dlsave]').forEach(b => b.onclick = () => {
     const e = S.events.find(x => x.id === b.dataset.dlsave), v = $('attDl').querySelector(`[data-dl="${e.id}"]`).value;
-    if (!v) return alert('回答期限の日付を入力してください');
-    if (v < ymd(new Date())) return alert('回答期限は今日以降の日付にしてください');
-    if (v > e.date) return alert('回答期限は予定の日までの日付にしてください');
+    if (!v) return alert('回答期限の日付と時間を入力してください');
+    if (v < nowKey()) return alert('回答期限は現在より後の日時にしてください');
+    if (v.slice(0, 10) > e.date) return alert('回答期限は予定の日までの日時にしてください');
     saveDl(e, v);
   });
   $('attDl').querySelectorAll('[data-dlclr]').forEach(b => b.onclick = () => saveDl(S.events.find(x => x.id === b.dataset.dlclr), ''));
@@ -2328,8 +2333,8 @@ function escortTodo(){
   const mine = myMemberIds(), tm = new Date(); tm.setDate(tm.getDate() + 1);
   const fams = families().filter(f => f.kids.some(k => mine.includes(k.id)));
   return S.events.filter(e => hasEscort(e) && e.escortDeadline && !isOver(e) && fams.some(f => !escortAnswered(e, f)))
-    .map(e => ({e, due: e.escortDeadline <= ymd(tm)}))
-    .sort((a, b) => a.e.escortDeadline.localeCompare(b.e.escortDeadline));
+    .map(e => ({e, due: e.escortDeadline.slice(0, 10) <= ymd(tm)}))
+    .sort((a, b) => dlAt(a.e.escortDeadline).localeCompare(dlAt(b.e.escortDeadline)));
 }
 const PUSH_DOC = 'wingsPushDoc', PUSH_OFF = 'wingsPushOff', PUSH_ASKED = 'wingsPushAsked';
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -2392,7 +2397,7 @@ function renderNotices(){
   $('modalBody').innerHTML = `<h3>🔔 お知らせ</h3>
     ${pushAskable() ? `<div class="notice" style="cursor:default">📲 <b>スマホ通知をオンにしてください</b><br>
       <span class="meta">${iosNeedsHome() ? IOS_GUIDE : '引率・車出しの回答期限の前日にお知らせします。下の「この端末で通知を受け取る」を押してください。'}</span></div>` : ''}
-    ${esTodo.map(({e, due}) => `<div class="notice ${due ? 'due' : ''}" data-date="${e.date}">${due ? '<b style="color:var(--ng)">【期限間近】</b>' : ''}🚗 ${fmtDay(e.date)} <b>${esc(evLabel(e))}</b> の引率・車出しが未回答<br><span class="meta">回答期限：${fmtDay(e.escortDeadline)}</span></div>`).join('')}
+    ${esTodo.map(({e, due}) => `<div class="notice ${due ? 'due' : ''}" data-date="${e.date}">${due ? '<b style="color:var(--ng)">【期限間近】</b>' : ''}🚗 ${fmtDay(e.date)} <b>${esc(evLabel(e))}</b> の引率・車出しが未回答<br><span class="meta">回答期限：${fmtEsDl(e.escortDeadline)}</span></div>`).join('')}
     ${todo.map(k => `<div class="notice due" data-dmonth="${k}">🧺 <b>${+k.slice(5)}月の${DM().tab}が未入力です</b><br>
       <span class="meta">${DM().can}を選んで「決定」、ない場合は「${DM().ngLabel}」を押してください。</span></div>`).join('')}
     ${noLink ? `<div class="banner">⚠ ${u.role==='coach'?'指導者名簿の自分':'自分の子供'}がまだ選択されていません。「アカウント設定」で選択してください(選択すると出欠を回答できます)。
