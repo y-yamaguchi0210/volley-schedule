@@ -2077,7 +2077,11 @@ function editEvent(ev, date){
   $('eDrop').ondrop = ev => { ev.preventDefault(); $('eDrop').classList.remove('over'); addFiles(ev.dataTransfer.files); };
   document.onpaste = ev => {
     if (!$('eDrop')) return;   // 編集画面以外では何もしない
-    const fs = [...(ev.clipboardData?.files || [])];
+    const cd = ev.clipboardData, fs = [...(cd?.files || [])], t = ev.target;
+    // 文字の入力欄に文字を貼り付けるときは通常の貼り付けにする
+    // (Excel・Word・メモアプリなどからコピーすると、文字と一緒に画像も入るため添付ファイル扱いになって文字が貼れなかった)
+    const textField = t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['file', 'checkbox', 'radio', 'button'].includes(t.type)));
+    if (textField && cd?.getData('text/plain')) return;
     if (fs.length) { ev.preventDefault(); addFiles(fs); }
   };
   $('eCancel').onclick = () => { S.editing = false; renderDay(S.openDate); };
