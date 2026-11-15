@@ -2158,13 +2158,16 @@ function renderMembers(){
   $('coachBreak').textContent = breakdown(C, POSITIONS, m => m.position);
   const U = S.users.filter(u => roleLabel(u) !== 'マスター');
   $('userCount').textContent = `　${U.length}件`;
-  // 家庭数：保護者アカウントの子供を兄弟姉妹ごとの家族にまとめて数える(父母が別アカウントでも1家庭)
+  // 家庭数：保護者・指導者(監督・コーチ)のアカウントを家庭ごとにまとめて数える(父母が別アカウントでも1家庭)
+  // 家庭情報の名前を選んだアカウントはその家庭、それ以外は選んだ子供の家族(兄弟姉妹は1家族)で判断
   const famOf = {};
-  families().forEach(f => f.kids.forEach(k => famOf[k.id] = f.key));
-  const P = U.filter(u => u.role !== 'coach');
-  const homes = new Set(P.flatMap(u => (u.childIds || []).map(id => famOf[id]).filter(Boolean))).size;
-  const noKid = P.filter(u => !(u.childIds || []).some(id => famOf[id])).length;
-  $('userBreak').textContent = `保護者 ${P.length}人(${homes}家庭${noKid ? `・子供未設定 ${noKid}人` : ''})・指導者 ${U.filter(u => u.role === 'coach').length}人`;
+  families().forEach(f => f.kids.forEach(k => { const h = householdOf(f); famOf[k.id] = h ? 'h:' + h.id : 'f:' + f.key; }));
+  const homeKeys = u => [...(u.famRel && households().some(h => h.id === u.famRel.split('|')[0]) ? ['h:' + u.famRel.split('|')[0]] : []),
+    ...(u.childIds || []).map(id => famOf[id]).filter(Boolean)];
+  const P = U.filter(u => u.role !== 'coach'), CU = U.filter(u => u.role === 'coach');
+  const homes = new Set(U.flatMap(homeKeys)).size;
+  const noKid = P.filter(u => !homeKeys(u).length).length;
+  $('userBreak').textContent = `${homes}家庭(保護者 ${P.length}人・指導者 ${CU.length}人)${noKid ? `・子供未設定の保護者 ${noKid}人` : ''}`;
   // 子供は女子・男子に分けて表示(未設定の子は最後)
   $('kidList').innerHTML = [...GENDERS, ''].map(g => [g, K.filter(k => (GENDERS.includes(k.gender) ? k.gender : '') === g)])
     .filter(([, list]) => list.length)
@@ -2172,7 +2175,10 @@ function renderMembers(){
     || '<li class="meta">まだ登録がありません</li>';
   $('coachList').innerHTML = coaches().map(li).join('') || '<li class="meta">まだ登録がありません</li>';
   const nameOf = id => S.members.find(m => m.id === id)?.name;
-  $('userList').innerHTML = S.users.map(u => {
+  // 登録アカウントは五十音順(マスターは先頭)。家庭情報のふりがながあれば苗字はそれで比べる
+  const kanaOf = u => { const h = u.famRel && households().find(x => x.id === u.famRel.split('|')[0]); return h?.kana ? h.kana + (u.relation || '') : u.name || ''; };
+  const sortedUsers = [...S.users].sort((a, b) => (roleLabel(b) === 'マスター') - (roleLabel(a) === 'マスター') || kanaOf(a).localeCompare(kanaOf(b), 'ja'));
+  $('userList').innerHTML = sortedUsers.map(u => {
     const ks = (u.childIds || []).map(nameOf).filter(Boolean);
     const info = roleLabel(u) === 'マスター' ? 'マスター(管理者)' : u.role === 'coach'
       ? '指導者' + (nameOf(u.coachId) ? `(名簿：${esc(nameOf(u.coachId))})` : '(名簿未設定)')
