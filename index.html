@@ -435,7 +435,7 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
     </div>
     <div class="card notMaster" style="max-width:560px;margin-top:16px">
       <h3>スマホ通知</h3>
-      <p class="meta">大会・練習試合の引率・車出しが未回答のとき、回答期限の前日にこの端末へ通知します。端末ごとに設定が必要です。</p>
+      <p class="meta">大会・練習試合の引率・車出しが未回答のとき、回答期限の前日に通知します。受け取る端末ごとに「この端末で通知を受け取る」を押してください。</p>
       <div id="pushBox"></div>
     </div>
     <div class="card" style="max-width:560px;margin-top:16px">
@@ -2218,7 +2218,7 @@ function renderMembers(){
       if (!name) { $('euMsg').textContent = 'お名前を入力してください'; return; }
       const dup = o && S.users.find(x => x.id !== u.id && x.famRel === o.key);
       if (dup) { $('euMsg').textContent = `${o.label} は ${dup.name}さんが選択済みです`; return; }
-      const patch = {notify:$('euNotify').checked, ...(o ? famLink(o) : u.famRel ? {name, famRel:'', famKey:'', childIds:[], pendingChildIds:[], coachId:''} : {name})};
+      const patch = {notify:$('euNotify').checked, pushNotify:$('euPush').checked, ...(o ? famLink(o) : u.famRel ? {name, famRel:'', famKey:'', childIds:[], pendingChildIds:[], coachId:''} : {name})};
       try { await moveClaim(u.id, u.famKey || '', 'famKey' in patch ? patch.famKey : u.famKey || ''); }
       catch { $('euMsg').textContent = `${name} は他のアカウントが選択済みです`; return; }
       await store.update('users', u.id, patch);
@@ -2248,6 +2248,7 @@ function userEditLi(u){
     <input id="euName" value="${esc(u.name || '')}" placeholder="お名前">
     <div class="meta">家庭情報の名前を選ぶと、立場・子供が自動で設定されます。</div>
     <label><input type="checkbox" id="euNotify" style="width:auto" ${u.notify !== false ? 'checked' : ''}> 未回答の出欠があるとき、前日にメールでお知らせを受け取る</label>
+    <label><input type="checkbox" id="euPush" style="width:auto" ${u.pushNotify !== false ? 'checked' : ''}> 引率・車出しが未回答のとき、回答期限の前日にスマホ通知を受け取る</label>
     <div class="actions"><button class="primary" id="euSave">保存</button><button id="euCancel">キャンセル</button></div>
     <div id="euMsg" class="meta" style="color:var(--ng)"></div></div></li>`;
 }
@@ -2483,10 +2484,13 @@ const lsSet = (k, v) => { try { v === null ? localStorage.removeItem(k) : localS
 const pushReady = () => USE_FIREBASE && !!window.FCM_VAPID_KEY && !!firebase.messaging && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 // iPhone はホーム画面に追加したアプリからだけ通知を受け取れる
 const iosNeedsHome = () => /iP(hone|ad|od)/.test(navigator.userAgent) && !navigator.standalone && !('PushManager' in window);
-const pushAskable = () => !isMaster() && !!window.FCM_VAPID_KEY && (iosNeedsHome() || (pushReady() && Notification.permission === 'default'));
+// アカウント単位のスマホ通知のオン・オフ(オフならどの端末にも送らない)
+const pushWanted = () => me()?.pushNotify !== false;
+const pushAskable = () => !isMaster() && pushWanted() && !!window.FCM_VAPID_KEY && (iosNeedsHome() || (pushReady() && Notification.permission === 'default'));
 const IOS_GUIDE = 'iPhoneで通知を受け取るには、Safariの共有メニューから「ホーム画面に追加」し、ホーム画面のアイコンから開いてオンにしてください(iOS 16.4以降)。';
 // 端末の通知先をFirestoreに登録する(通知を許可済みでオフにしていない端末のみ)
 async function syncPush(){
+  if (!pushWanted()) { await removePushDoc(); return false; }
   if (!pushReady() || isMaster() || !S.auth || Notification.permission !== 'granted' || lsGet(PUSH_OFF)) return false;
   const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
   await navigator.serviceWorker.ready;
@@ -2522,12 +2526,23 @@ async function localNote(title, body){
 }
 function renderPushBox(){
   const box = $('pushBox'), on = pushReady() && Notification.permission === 'granted' && !!lsGet(PUSH_DOC) && !lsGet(PUSH_OFF);
-  box.innerHTML = iosNeedsHome() ? `<div class="meta">${IOS_GUIDE}</div>`
+  const sw = `<label style="font-weight:600"><input type="checkbox" id="pushAcct" style="width:auto" ${pushWanted() ? 'checked' : ''}> スマホ通知を受け取る(このアカウント)</label>`;
+  box.innerHTML = sw + (!pushWanted() ? '<div class="meta">🔕 オフになっています。このアカウントのどの端末にもスマホ通知は届きません。</div>' : iosNeedsHome() ? `<div class="meta">${IOS_GUIDE}</div>`
     : !USE_FIREBASE || !window.FCM_VAPID_KEY ? '<div class="meta">スマホ通知はまだ準備中です。</div>'
     : !pushReady() ? '<div class="meta">この端末・ブラウザはスマホ通知に対応していません。</div>'
     : Notification.permission === 'denied' ? '<div class="meta">この端末で通知がブロックされています。ブラウザまたは端末の設定で通知を許可してください。</div>'
     : on ? '<div class="meta">✅ この端末で受け取ります</div><div class="actions"><button id="pushOff">オフにする</button></div>'
-    : '<div class="actions" style="justify-content:flex-start"><button class="primary" id="pushOn">この端末で通知を受け取る</button></div>';
+    : '<div class="actions" style="justify-content:flex-start"><button class="primary" id="pushOn">この端末で通知を受け取る</button></div>');
+  $('pushAcct').onchange = async () => {
+    const v = $('pushAcct').checked;
+    $('pushAcct').disabled = true;
+    try {
+      await store.update('users', S.auth.uid, {pushNotify:v});
+      log(`スマホ通知を${v ? 'オン' : 'オフ'}に変更`);
+      if (v) await syncPush().catch(err => console.warn('push', err)); else await removePushDoc();
+    } catch (err) { alert('保存に失敗しました：' + (err?.message || err)); }
+    renderPushBox();
+  };
   if ($('pushOn')) $('pushOn').onclick = async () => { $('pushOn').disabled = true; await enablePush(); renderPushBox(); };
   if ($('pushOff')) $('pushOff').onclick = async () => { lsSet(PUSH_OFF, '1'); await removePushDoc(); renderPushBox(); };
 }
