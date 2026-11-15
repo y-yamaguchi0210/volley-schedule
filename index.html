@@ -1635,7 +1635,8 @@ function coachDoneMonths(){
   SELF_MEMO = {ev:S.events, us:S.users, done};
   return done;
 }
-const autoSelf = e => e.type === 'practice' && coachDoneMonths().has(e.date.slice(0, 7)) && !coachShown(e).length;
+// コピー中の予定(日付を外した状態)は判定しない
+const autoSelf = e => e.type === 'practice' && !!e.date && coachDoneMonths().has(e.date.slice(0, 7)) && !coachShown(e).length;
 const isSelf = e => e.type === 'practice' && (e.selfMode === 'self' || (e.selfMode !== 'normal' && autoSelf(e)));
 const SELF_LABEL = {'': '自動(指導者が誰も入れなければ自主練習)', normal: '通常の練習', self: '自主練習'};
 // 予定の画面でマスターが使う切り替えボタン
