@@ -688,8 +688,8 @@ const typeOf = e => {
   const t = TYPES[e.type] || TYPES.practice;
   return e.type === 'custom' ? {label: e.typeName || 'その他', c: t.c} : t;
 };
-// 出欠をとる予定か(休みはとらない、手入力は設定次第)
-const needsAtt = e => e.type === 'off' ? false : e.type === 'custom' ? !!e.takeAtt : true;
+// 出欠をとる予定か(休みはとらない、手入力は設定次第、マスターが「回答不要」にした予定はとらない)
+const needsAtt = e => e.noAtt ? false : e.type === 'off' ? false : e.type === 'custom' ? !!e.takeAtt : true;
 const ATT = {o:'○', m:'△', x:'×'};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1243,6 +1243,7 @@ function renderDay(date){
         ${e.note ? `<div style="white-space:pre-wrap">📝 ${esc(e.note)}</div>` : ''}
         ${(e.attachments || []).length ? `<div class="files">📎 ${e.attachments.map(a => `<button class="filebtn" data-file="${e.id}|${a.id}">${esc(a.name)} <span class="meta">${fmtSize(a.size)}</span></button>`).join('')}</div>` : ''}
         <div class="meta">最終更新：${esc(e.updatedByName || '')} ${e.updatedAt ? fmtAt(e.updatedAt) : ''}</div>
+        ${e.noAtt || (e.noEscort && escortType(e.type)) ? `<div class="meta">🔕 ${[e.noAtt ? '出欠' : '', e.noEscort && escortType(e.type) ? '引率・車出し' : ''].filter(Boolean).join('・')}の回答は不要です</div>` : ''}
         ${needsAtt(e) ? `
           <h4>子供の出欠(参加 ${attN(e, 'o')}人・不参加 ${attN(e, 'x')}人)</h4>${kidAttSummary(e)}
           ${isCoachEv(e) ? '' : `<h4>指導者の出欠(○ ${countAtt(e, coaches())})</h4>${attTable(e, coaches(), '「メンバー」タブで指導者を登録してください')}`}` : ''}
@@ -1310,11 +1311,11 @@ function renderDay(date){
       const other = splitNames(row.querySelector('[data-other]').value).join('、');
       const car = row.querySelector('[data-car]').value;
       // 2台目以降の空欄は保存しない
-      const carSeats = car !== 'yes' ? [] : [...row.querySelectorAll('[data-seats]')].map(i => Math.max(0, parseInt(i.value) || 0)).filter((v, i) => i === 0 || v > 0);
-      const seats = carSeats.reduce((a, b) => a + b, 0);
+      const carCaps = car !== 'yes' ? [] : [...row.querySelectorAll('[data-seats]')].map(i => Math.max(0, parseInt(i.value) || 0)).filter((v, i) => i === 0 || v > 0);
+      const cap = carCaps.reduce((a, b) => a + b, 0);
       if (car !== 'yes') delete S.carRows?.[ev.id + '|' + fam.key];
-      await store.update('events', ev.id, {['escort.' + fam.key]: {who, other, car, seats, carSeats, ...stamp()}});
-      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `${carSeats.length}台(子供${seats}人)` : car === 'no' ? 'なし' : '未回答'}」に変更`);
+      await store.update('events', ev.id, {['escort.' + fam.key]: {who, other, car, cap, carCaps, ...stamp()}});
+      log(`${ev.date} ${evLabel(ev)}：${famName(fam)} の引率を「${[...who, ...splitNames(other)].join('・') || 'なし'}／車${car === 'yes' ? `${carCaps.length}台(計${cap}人乗り)` : car === 'no' ? 'なし' : '未回答'}」に変更`);
     };
     const saveNow = () => save().catch(saveErr);
     row.querySelectorAll('input,select').forEach(inp => inp.onchange = () => { sync(); return saveNow(); });
@@ -1358,9 +1359,11 @@ const escortAnswered = (e, f) => !!e.escort?.[f.key]?.at;
 // 回答期限を過ぎたか(期限の時刻になったら締切)。過ぎたらマスター以外は引率・車出しの回答を変更できない
 const escortPast = e => !!e.escortDeadline && dlAt(e.escortDeadline) <= nowKey();
 const escortLocked = e => !isMaster() && escortPast(e);
-// 家庭が出す車ごとの乗車人数(1台だけの以前の回答は seats をそのまま1台分として扱う)
-const escortCars = cur => cur.car !== 'yes' ? [] : cur.carSeats?.length ? cur.carSeats : [cur.seats || 0];
-const hasEscort = e => e.type === 'match' || e.type === 'tournament';
+// 家庭が出す車ごとの定員(何人乗りか)。以前の回答(子供の乗車人数 carSeats/seats)はそのまま表示
+const escortCars = cur => cur.car !== 'yes' ? [] : cur.carCaps?.length ? cur.carCaps : cur.carSeats?.length ? cur.carSeats : [cur.seats || 0];
+const escortType = t => t === 'match' || t === 'tournament';
+// 引率・車出しの回答をとる予定か(マスターが「回答不要」にした予定はとらない)
+const hasEscort = e => escortType(e.type) && !e.noEscort;
 // 兄弟姉妹(メンバー登録の兄弟設定、または同じ保護者アカウントに紐づく子)は1家族にまとめて連名表示
 function families(){
   const K = kids(), parent = {};
@@ -1387,11 +1390,11 @@ function escortTable(e){
   const rows = isMaster() ? fams : fams.filter(f => f.kids.some(k => mine.includes(k.id)));
   const cars = fams.reduce((n, f) => n + escortCars(es[f.key] || {}).length, 0);
   const seats = fams.reduce((n, f) => n + escortCars(es[f.key] || {}).reduce((a, b) => a + b, 0), 0);
-  const going = kids().filter(k => att[k.id]?.v === 'o').length;
+  const going = kids().filter(k => att[k.id]?.v === 'o').length, ride = going + adults;
   return `<h4>保護者の引率・車出し</h4>
     ${e.escortDeadline ? `<div class="meta">⏰ 回答期限：<b>${fmtEsDl(e.escortDeadline)}</b>${escortPast(e) ? ` <b style="color:var(--ng)">期限を過ぎています${isMaster() ? '(マスターは変更できます)' : '。変更が必要な場合はマスター権限の方に連絡してください'}</b>` : ''}</div>` : ''}
-    <div class="meta">引率 大人${adults}人 ／ 車 ${cars}台・子供 ${seats}人乗車可(出席の子供 ${going}人)
-      ${seats < going ? ` <b style="color:var(--ng)">あと${going - seats}人分足りません</b>` : ''}</div>
+    <div class="meta">引率 大人${adults}人 ／ 車 ${cars}台・定員 合計${seats}人(乗る人：出席の子供 ${going}人＋引率の大人 ${adults}人)
+      ${seats < ride ? ` <b style="color:var(--ng)">あと${ride - seats}人分足りません</b>` : ''}</div>
     ${rows.map(f => {
       const cur = es[f.key] || {}, my = f.kids.some(k => mine.includes(k.id)), opts = escortOpts(f), h = householdOf(f);
       const carList = escortCars(cur), carN = cur.car === 'yes' ? Math.max(carList.length, S.carRows?.[e.id + '|' + f.key] || 1) : 1;
@@ -1403,7 +1406,7 @@ function escortTable(e){
         <div class="escar">🚗
           <select data-car style="width:auto" ${dis}><option value="">車出し：未回答</option><option value="yes" ${cur.car==='yes'?'selected':''}>出せる</option><option value="no" ${cur.car==='no'?'selected':''}>出せない</option></select>
         </div>
-        ${[...Array(carN)].map((_, i) => `<div class="escar" style="margin-top:4px">${i + 1}台目 子供<input type="number" data-seats min="0" max="9" value="${carList[i] || ''}" style="width:60px">人乗せられる${i && !lock ? ` <button type="button" data-carrm="${i}" title="この車を削除">✕</button>` : ''}</div>`).join('')}
+        ${[...Array(carN)].map((_, i) => `<div class="escar" style="margin-top:4px">${i + 1}台目 <input type="number" data-seats min="0" max="15" value="${carList[i] || ''}" style="width:60px">人乗り(運転手を含む定員)${i && !lock ? ` <button type="button" data-carrm="${i}" title="この車を削除">✕</button>` : ''}</div>`).join('')}
         <button type="button" data-caradd class="hidden" style="margin-top:6px">＋ 車を追加</button>
         ${lock ? '<div class="meta" style="flex-basis:100%;color:var(--ng)">🔒 回答期限を過ぎたため変更できません</div>' : ''}
         <div class="meta">${cur.at ? `${esc(cur.byName)} ${fmtAt(cur.at)}` : '未回答'}</div>
@@ -1433,9 +1436,9 @@ function escortSummary(e){
       <td>${cur.car === 'yes' ? carTotal + '人' + (carList.length > 1 ? `(${carList.join('+')})` : '') : ''}</td></tr>`;
   }).join('');
   return btn + `<div class="dcWrap"><table class="dcTbl">
-    <tr><th>家庭</th><th>子どもの出欠</th><th>引率</th><th>車出し</th><th>乗車可</th></tr>${rows}
+    <tr><th>家庭</th><th>子どもの出欠</th><th>引率</th><th>車出し</th><th>定員</th></tr>${rows}
     <tr class="sum"><td>合計</td><td style="text-align:left">○${tot.o} △${tot.m} ×${tot.x} 未${tot.n}</td><td>大人${tot.adults}人</td><td>${tot.cars}台</td><td>${tot.seats}人</td></tr></table></div>
-    <div class="meta">出席の子ども ${tot.o}人に対し乗車可 ${tot.seats}人${tot.seats < tot.o ? ` <b style="color:var(--ng)">あと${tot.o - tot.seats}人分足りません</b>` : ''}</div>`;
+    <div class="meta">乗る人(出席の子ども ${tot.o}人＋引率の大人 ${tot.adults}人)に対し定員 合計${tot.seats}人${tot.seats < tot.o + tot.adults ? ` <b style="color:var(--ng)">あと${tot.o + tot.adults - tot.seats}人分足りません</b>` : ''}</div>`;
 }
 
 /* ---------- 出欠確認(子供の出欠をカレンダーで入力) ---------- */
@@ -2020,6 +2023,11 @@ function editEvent(ev, date){
       <label>自主練習の表示</label>
       <select id="eSelf">${Object.entries(SELF_LABEL).map(([k, l]) => `<option value="${k}" ${(e.selfMode || '') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     </div>
+    <div id="eAskBox">
+      <label>回答の受付(チェックを外すと回答欄とお知らせが出なくなります)</label>
+      <div class="chips"><label id="eAskAttL"><input type="checkbox" id="eAskAtt" style="width:auto" ${e.noAtt ? '' : 'checked'}>出欠の回答を求める</label>
+        <label id="eAskEsL"><input type="checkbox" id="eAskEs" style="width:auto" ${e.noEscort ? '' : 'checked'}>引率・車出しの回答を求める</label></div>
+    </div>
     <label>当番に入る保護者・指導者</label>
     ${parents.length ? dutyGroups.map(([t, ns]) => `<div class="meta" style="margin:6px 0 4px">${t}</div>
     <div class="chips">${ns.map(n => `<label><input type="checkbox" class="dutyChk" value="${esc(n)}" ${duty.includes(n)?'checked':''}>${esc(n)}</label>`).join('')}</div>`).join('')
@@ -2039,6 +2047,10 @@ function editEvent(ev, date){
     $('eTimeRow').classList.toggle('hidden', $('eNoTime').checked);
     $('eCustomBox').classList.toggle('hidden', $('eType').value !== 'custom');
     $('eSelfBox').classList.toggle('hidden', $('eType').value !== 'practice');
+    const t = $('eType').value, askAtt = t !== 'off' && t !== 'custom', askEs = escortType(t);
+    $('eAskAttL').classList.toggle('hidden', !askAtt);
+    $('eAskEsL').classList.toggle('hidden', !askEs);
+    $('eAskBox').classList.toggle('hidden', !askAtt && !askEs);
   };
   $('eType').onchange = $('eNoTime').onchange = syncTime; syncTime();
   // 場所の選択 → 入力欄に反映。手入力したら選択と連動
@@ -2101,6 +2113,8 @@ function editEvent(ev, date){
       typeName: $('eType').value === 'custom' ? $('eTypeName').value.trim() : '',
       takeAtt: $('eType').value === 'custom' && $('eTakeAtt').checked,
       selfMode: $('eType').value === 'practice' ? $('eSelf').value : '',
+      noAtt: !['off', 'custom'].includes($('eType').value) && !$('eAskAtt').checked,
+      noEscort: escortType($('eType').value) && !$('eAskEs').checked,
       updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now(),
     };
     if (!data.date) { $('eErr').textContent = '日付を入力してください'; return; }
