@@ -2193,10 +2193,12 @@ function renderMembers(){
   const kanaOf = u => { const h = u.famRel && households().find(x => x.id === u.famRel.split('|')[0]); return h?.kana ? h.kana + (u.relation || '') : u.name || ''; };
   const sortedUsers = [...S.users].sort((a, b) => (roleLabel(b) === 'マスター') - (roleLabel(a) === 'マスター') || kanaOf(a).localeCompare(kanaOf(b), 'ja'));
   $('userList').innerHTML = sortedUsers.map(u => {
-    const ks = (u.childIds || []).map(nameOf).filter(Boolean);
-    const info = roleLabel(u) === 'マスター' ? 'マスター(管理者)' : u.role === 'coach'
-      ? '指導者' + (nameOf(u.coachId) ? `(名簿：${esc(nameOf(u.coachId))})` : '(名簿未設定)')
-      : '保護者' + (ks.length ? `・${esc(ks.join('、'))} の${esc(u.relation || '保護者')}` : '(子供未設定)');
+    // 子供・続柄は家庭情報を優先(指導者も保護者と同じく「〇〇 の父」と表示)
+    const fo = u.famRel && nameOpts().find(x => x.key === u.famRel);
+    const ks = fo ? famKids(fo.h).map(k => k.name) : (u.childIds || []).map(nameOf).filter(Boolean);
+    const rel = (fo ? fo.r.rel : u.relation) || '保護者', kidText = ks.length ? `・${esc(ks.join('、'))} の${esc(rel)}` : '(子供未設定)';
+    const pos = S.members.find(m => m.type === 'coach' && m.id === u.coachId)?.position || fo?.r.position || 'コーチ';
+    const info = roleLabel(u) === 'マスター' ? 'マスター(管理者)' : u.role === 'coach' ? `指導者(${esc(pos)})` + kidText : '保護者' + kidText;
     const canEdit = isMaster() && roleLabel(u) !== 'マスター';
     if (canEdit && S.editUser === u.id) return userEditLi(u);
     const delBtn = canEdit ? `<span style="white-space:nowrap"><button data-eduser="${u.id}">編集</button><button class="danger" data-rmuser="${u.id}">削除</button></span>` : '';
@@ -2354,37 +2356,63 @@ function secureMigrate(){
   if (!isMaster() || S.migrating || Date.now() - (S.migratedAt || 0) < 15000) return;
   if (!['users', 'members', 'private', 'claims'].every(c => S.loaded?.[c])) return;
   S.migrating = true; S.migratedAt = Date.now();
+  // 書き込みがあったら、最新のデータでもう一度確認する(1回目は読み込み前のデータで判断することがあるため)
+  let n = 0;
+  const st = Object.fromEntries(['add', 'set', 'update', 'remove', 'delField'].map(k => [k, (...a) => (n++, store[k](...a))]));
   (async () => {
     for (const h of households()) {
-      const relatives = (h.relatives || []).map(r => r.rid ? r : {...r, rid:newRid()});
+      // アカウントが指導者なのに家庭情報の立場が保護者の親族は、指導者(コーチ)にそろえる
+      const coachKeys = new Set(S.users.filter(u => !u.deleted && u.role === 'coach' && u.famRel).map(u => u.famRel));
+      const relatives = (h.relatives || []).map(r => r.rid ? r : {...r, rid:newRid()})
+        .map(r => r.role !== 'coach' && coachKeys.has(`${h.id}|${r.rel}`) ? {...r, role:'coach', position:'コーチ'} : r);
+      // 指導者(監督・コーチ)の親族は必ず指導者名簿に載せる(名簿が抜けていたら作る・名前が同じ古い名簿は紐づけ直す)
+      for (const r of relatives.filter(r => r.role === 'coach')) {
+        if (relCoach(h.id, r.rid)) continue;
+        const pos = r.position || 'コーチ', old = S.members.find(m => m.type === 'coach' && !m.deleted
+          && (m.familyId === h.id || !m.familyId) && m.name === relLabel(h, r) && !relatives.some(x => x.rid && x.rid === m.rid && x !== r));
+        if (old) { await st.update('members', old.id, {familyId:h.id, rid:r.rid, position:pos}); Object.assign(old, {familyId:h.id, rid:r.rid, position:pos}); }
+        else { const ref = await st.add('members', {type:'coach', name:relLabel(h, r), position:pos, familyId:h.id, rid:r.rid, ...stamp()});
+          if (!relCoach(h.id, r.rid)) S.members = [...S.members, {id:ref.id, type:'coach', name:relLabel(h, r), position:pos, familyId:h.id, rid:r.rid}]; }
+      }
       const links = Object.fromEntries(relatives.map(r => [r.rid,
         [...famKids(h).map(k => k.id), ...(r.role === 'coach' && relCoach(h.id, r.rid) ? [relCoach(h.id, r.rid).id] : [])]]));
       for (const r of relatives.filter(r => r.role === 'coach')) {
         const m = relCoach(h.id, r.rid);
-        if (m && m.name !== relLabel(h, r)) await store.update('members', m.id, {name:relLabel(h, r)});
+        if (m && (m.name !== relLabel(h, r) || m.position !== (r.position || 'コーチ'))) await st.update('members', m.id, {name:relLabel(h, r), position:r.position || 'コーチ'});
       }
-      if (relatives.some((r, i) => r !== h.relatives[i]) || sortObj(links) !== sortObj(h.links)) await store.update('members', h.id, {relatives, links});
+      if (relatives.some((r, i) => r !== h.relatives[i]) || sortObj(links) !== sortObj(h.links)) await st.update('members', h.id, {relatives, links});
+    }
+    // 家庭情報と結びついていない指導者アカウントも、名簿に本人がいなければ作って結びつける
+    for (const u of S.users.filter(u => !u.deleted && u.role === 'coach' && !(u.famRel && nameOpts().some(x => x.key === u.famRel)))) {
+      if (S.members.some(m => m.type === 'coach' && m.id === u.coachId)) continue;
+      const used = new Set(S.users.filter(x => x.id !== u.id).map(x => x.coachId).filter(Boolean));
+      let m = S.members.find(m => m.type === 'coach' && m.name === u.name && !used.has(m.id));
+      if (!m) { const ref = await st.add('members', {type:'coach', name:u.name, position:'コーチ', ...stamp()}); m = {id:ref.id}; }
+      await st.update('users', u.id, {coachId:m.id});
     }
     const priv = new Set(S.private.map(p => p.id)), keyOf = {};
     for (const u of S.rawUsers.filter(u => roleLabel(u) !== 'マスター')) {
       if (u.deleted) {
-        if (priv.has(u.id)) await store.remove('private', u.id);
-        if (u.email && USE_FIREBASE) await store.delField('users', u.id, 'email');
+        if (priv.has(u.id)) await st.remove('private', u.id);
+        if (u.email && USE_FIREBASE) await st.delField('users', u.id, 'email');
         continue;
       }
       if (u.email && USE_FIREBASE) {
-        if (!priv.has(u.id)) await store.set('private', u.id, {email:u.email});
-        await store.delField('users', u.id, 'email');
+        if (!priv.has(u.id)) await st.set('private', u.id, {email:u.email});
+        await st.delField('users', u.id, 'email');
       }
       const o = u.famRel && nameOpts().find(x => x.key === u.famRel), key = o ? famKeyOf(o.h, o.r) : '';
-      if ((u.famKey || '') !== key) await store.update('users', u.id, {famKey:key});
-      if (o && u.name !== o.label) await store.update('users', u.id, {name:o.label});   // 表記の変更(全角→半角カッコなど)を反映
+      if ((u.famKey || '') !== key) await st.update('users', u.id, {famKey:key});
+      if (o && u.name !== o.label) await st.update('users', u.id, {name:o.label});   // 表記の変更(全角→半角カッコなど)を反映
+      // 指導者の名前を選んだアカウントは、立場と指導者名簿の自分を家庭情報に合わせる
+      if (o) { const cid = o.r.role === 'coach' ? relCoach(o.h.id, o.r.rid)?.id || '' : '', role = o.r.role === 'coach' ? 'coach' : 'parent';
+        if ((u.coachId || '') !== cid || u.role !== role) await st.update('users', u.id, {coachId:cid, role}); }
       if (key) keyOf[u.id] = key;
     }
-    for (const c of S.claims) if (keyOf[c.uid] !== c.id) await store.remove('claims', c.id);
+    for (const c of S.claims) if (keyOf[c.uid] !== c.id) await st.remove('claims', c.id);
     const kept = new Set(S.claims.filter(c => keyOf[c.uid] === c.id).map(c => c.id));
-    for (const [uid, key] of Object.entries(keyOf)) if (!kept.has(key)) { kept.add(key); await store.set('claims', key, {uid}); }
-  })().catch(e => console.warn('secureMigrate', e)).finally(() => S.migrating = false);
+    for (const [uid, key] of Object.entries(keyOf)) if (!kept.has(key)) { kept.add(key); await st.set('claims', key, {uid}); }
+  })().catch(e => console.warn('secureMigrate', e)).finally(() => { S.migrating = false; if (n && (S.migrateRuns = (S.migrateRuns || 0) + 1) < 5) setTimeout(() => { S.migratedAt = 0; secureMigrate(); }, 3000); else if (!n) S.migrateRuns = 0; });
 }
 
 $('rsSend').onclick = async () => {
@@ -2723,6 +2751,11 @@ async function saveFam(){
   }
   for (const m of S.members.filter(m => m.type === 'coach' && m.familyId === id && m.rid && !f.relatives.some(r => r.rid === m.rid && r.role === 'coach')))
     await store.remove('members', m.id);
+  // 家庭情報で立場を変えたら、その名前を選んだアカウントの立場も合わせる(指導者⇔保護者)
+  for (const u of S.users.filter(u => u.famRel && u.famRel.split('|')[0] === id)) {
+    const r = f.relatives.find(r => `${id}|${r.rel}` === u.famRel), role = r?.role === 'coach' ? 'coach' : 'parent';
+    if (r && u.role !== role) await store.update('users', u.id, {role, ...(role === 'parent' ? {coachId:''} : {})});
+  }
   log(`家庭情報「${f.surname}家」を${f.id ? '編集' : '登録'}(子ども：${f.kids.map(k => k.name).join('・') || 'なし'}／親族：${f.relatives.map(r => `${r.rel}(${relText(r)})`).join('・') || 'なし'})`);
   S.editFam = null; S.migratedAt = 0; renderFamilies();
 }
