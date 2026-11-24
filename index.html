@@ -216,6 +216,10 @@ body:not(.is-master) .masterOnly,body.is-master .notMaster{display:none!importan
   .ev{font-size:10px;padding:1px 2px;border-left-width:3px}
   .ev .tm{display:block;font-size:9px;line-height:1.25;color:var(--muted)}
   .ev .te{display:inline-block}
+  /* 月表示では当番の名前を見切れさせず、1人1行で表示 */
+  .grid:not(.vlist) .ev .duty{white-space:normal}
+  .grid:not(.vlist) .ev .duty .dn{display:block;overflow-wrap:anywhere}
+  .grid:not(.vlist) .ev .duty .ds{display:none}
   .row,.cols{grid-template-columns:1fr}
   header h1 .ttl span{display:block;line-height:1.25}  /* スマホは「WINGS」「月間予定表」の2行 */
   /* スマホはタイトルの横に🔔・ログアウト、「○○さんでログイン中」は下の行 */
@@ -1036,7 +1040,7 @@ function renderCal(){
         <b>${esc(e.title ? (isSelf(e) ? '自主練習：' : '') + e.title : t.label)}</b>
         ${e.type !== 'off' ? evTime(e) : ''}
         ${vlist && needsAtt(e) ? `<div class="kc"><span>参加${attN(e, 'o')}</span><span>不参加${attN(e, 'x')}</span></div>` : ''}
-        ${dutyShown(e).length ? `<div class="duty">当番:${esc(dutyShown(e).join('・'))}</div>` : ''}
+        ${dutyShown(e).length ? `<div class="duty">当番:${dnames(dutyShown(e))}</div>` : ''}
         ${(e.note || "").trim() ? `<div class="chk">確認事項有り</div>` : ""}
         ${vlist && isCoachEv(e) ? `<div class="duty">指導者:${esc(coachShown(e).map(w => w.name).join('・')) || '未定'}</div>` : ''}
       </div>`;
@@ -1609,6 +1613,8 @@ const dutyWishers = e => Object.entries(e.dutyWish || {}).filter(([, w]) => w)
   .filter(w => w.name).sort((a, b) => a.at - b.at);
 // 表示する当番：マスターが「当番決め」で確定した(または予定編集で入力した)当番だけ
 const dutyShown = e => e.duty || [];
+// カレンダーの当番名：スマホでは1人1行で表示できるよう名前ごとに区切る
+const dnames = ns => ns.map(n => `<span class="dn">${esc(n)}</span>`).join("<span class=\"ds\">・</span>");
 // 確定した当番の一覧 [{name, uid, role}]。複数人に対応(dutyPeople)。以前の1人だけの形式(dutyUid・dutyRole)も読む
 const peopleOf = e => {
   if (Array.isArray(e.dutyPeople)) return (e.duty || []).map(n => { const p = e.dutyPeople.find(p => p.name === n); return {name:n, uid:p?.uid || '', role:p?.role || ''}; });
@@ -1837,7 +1843,7 @@ function renderDuty(){
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
         ${evTime(e)}
-        ${coach ? '' : `<div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${esc(shown.join('・'))}` : ws.length ? `希望${ws.length}人(未定)` : '<span class="meta">希望者なし</span>'}</div>`}
+        ${coach ? '' : `<div class="duty">${shown.length ? `${mine ? '★' : ''}当番:${dnames(shown)}` : ws.length ? `希望${ws.length}人(未定)` : '<span class="meta">希望者なし</span>'}</div>`}
         ${pick && !isOver(e) && e[t.f]?.[uid] ? `<div class="wish">${t.done}</div>` : ''}
       </div>`;
     }).join('');
@@ -1905,7 +1911,7 @@ function renderDutySet(){
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
         ${evTime(e)}
-        <div class="duty ${ch ? 'draft' : ''}">${ch ? '●' : ''}${dr.length ? `当番:${esc(dr.map(p => p.name).join('・'))}` : ws.length ? `希望${ws.length}人(未定)` : ch ? '未定' : '<span class="meta">希望者なし</span>'}</div>
+        <div class="duty ${ch ? 'draft' : ''}">${ch ? '●' : ''}${dr.length ? `当番:${dnames(dr.map(p => p.name))}` : ws.length ? `希望${ws.length}人(未定)` : ch ? '未定' : '<span class="meta">希望者なし</span>'}</div>
         ${ca.length ? `<div class="duty">指導可:${ca.length}人</div>` : ''}
       </div>`;
     }).join('');
