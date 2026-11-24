@@ -1258,7 +1258,7 @@ function renderDay(date){
   $('closeM').onclick = () => tryClose();
   if ($('addEv')) $('addEv').onclick = () => editEvent(null, date);
   // 当番希望と、希望から決めた当番はコピーしない
-  const setClip = list => { S.clip = list.map(({id, attendance, escort, escortDeadline, dutyWish, coachOk, dutyUid, dutyRole, dutyDraft, date, draft, selfMode, ...rest}) => dutyUid ? {...rest, duty:[]} : rest); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
+  const setClip = list => { S.clip = list.map(e0 => { const {id, attendance, escort, escortDeadline, dutyWish, coachOk, dutyUid, dutyRole, dutyPeople, dutyDraft, date, draft, selfMode, ...rest} = e0; return peopleOf(e0).some(p => p.uid) ? {...rest, duty:[]} : rest; }); S.pasteDates = new Set(); S.delMode = false; closeModal(); render(); };
   $('modalBody').querySelectorAll('[data-copy]').forEach(b => b.onclick = () => setClip([S.events.find(e => e.id === b.dataset.copy)]));
   if ($('copyAll')) $('copyAll').onclick = () => setClip(evs);
   $('modalBody').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editEvent(S.events.find(e => e.id === b.dataset.edit), date));
@@ -1607,6 +1607,18 @@ const dutyWishers = e => Object.entries(e.dutyWish || {}).filter(([, w]) => w)
   .filter(w => w.name).sort((a, b) => a.at - b.at);
 // 表示する当番：マスターが「当番決め」で確定した(または予定編集で入力した)当番だけ
 const dutyShown = e => e.duty || [];
+// 確定した当番の一覧 [{name, uid, role}]。複数人に対応(dutyPeople)。以前の1人だけの形式(dutyUid・dutyRole)も読む
+const peopleOf = e => {
+  if (Array.isArray(e.dutyPeople)) return (e.duty || []).map(n => { const p = e.dutyPeople.find(p => p.name === n); return {name:n, uid:p?.uid || '', role:p?.role || ''}; });
+  const ns = e.duty || [], u = e.dutyUid && S.users.find(x => x.id === e.dutyUid);
+  const i = e.dutyUid ? Math.max(0, u ? ns.indexOf(u.name) : 0) : -1;
+  return ns.map((n, j) => j === i ? {name:n, uid:e.dutyUid, role:e.dutyRole || ''} : {name:n, uid:'', role:''});
+};
+// 当番決めの下書き(dutyDraft)の一覧。以前の1人だけの形式({duty, uid, role, free})も読む
+const draftPeople = d => Array.isArray(d.people) ? d.people.map(p => ({name:p.name, uid:p.uid || '', role:p.role || '', free:!!p.free}))
+  : (d.duty || []).map((n, j) => j === 0 && d.uid ? {name:n, uid:d.uid, role:d.role || '', free:!!d.free} : {name:n, uid:'', role:'', free:true});
+// 保存用：当番の一覧 → 予定に書き込む項目(以前の形式の dutyUid・dutyRole には先頭の人を入れておく)
+const dutyFields = ps => { const f = ps.find(p => p.uid); return {duty:ps.map(p => p.name), dutyPeople:ps.map(({name, uid, role}) => ({name, uid, role})), dutyUid:f?.uid || '', dutyRole:f?.role || ''}; };
 // 当番を希望できるのはマスター以外(保護者・指導者)
 const canWish = () => !isMaster() && !!me();
 // 指導者は「当番希望日」の代わりに「指導可能日」を同じ形式で回答する(予定の coachOk・アカウントの coachNG に保存)
@@ -1621,7 +1633,7 @@ const coachAvail = e => Object.entries(e.coachOk || {}).filter(([, w]) => w)
   .map(([uid, w]) => { const u = S.users.find(x => x.id === uid); return {uid, at:w.at, name:u?.name, rank:posRank(S.members.find(m => m.id === u?.coachId)?.position)}; })
   .filter(w => w.name).sort((a, b) => a.rank - b.rank || a.at - b.at);
 // 指導者として表示する人：当番のみ(dutyRole:'duty')に決定した指導者は除く
-const coachShown = e => coachAvail(e).filter(w => !(e.dutyRole === 'duty' && e.dutyUid === w.uid && (e.duty || []).length));
+const coachShown = e => { const ps = peopleOf(e); return coachAvail(e).filter(w => !ps.some(p => p.uid === w.uid && p.role === 'duty')); };
 /* ---------- 自主練習 ---------- */
 // 指導者が誰も入れない練習は「自主練習」と表示する。判定するのは、その月の指導可能日を
 // 指導者のアカウント全員が回答(入れる日を選ぶか「指導不可」)し終えた月だけ(回答前の日が自主練習にならないように)
@@ -1699,7 +1711,7 @@ function dutyAutoOff(){
     .catch(() => {}).finally(() => S.dutyAutoOff = false);
 }
 // 保護者の当番希望：日付をタップして複数選択 →「決定」でまとめて保存
-const fixedDuty = (e, uid) => e.dutyUid === uid && (e.duty || []).length;
+const fixedDuty = (e, uid) => peopleOf(e).some(p => p.uid === uid);
 const myWishDates = () => new Set(S.events.filter(e => tabEv(e) && !isOver(e) && e[DM().f]?.[S.auth.uid]).map(e => e.date));
 const wishable = key => eventsOn(key).some(e => tabEv(e) && !isOver(e));
 function dutyChanges(){
@@ -1837,14 +1849,16 @@ function renderDuty(){
 /* ---------- 当番決め(マスターのみ) ---------- */
 // 当番希望日の回答はまず当番決めの「下書き」(dutyDraft)に反映し、マスターが「確定」したらカレンダーの当番(duty)に反映する
 // 下書き：マスターが編集した内容を優先、なければ確定済みの当番、それもなければ希望者が1人ならその人
+// 当番は複数人を選べる。下書き・確定とも「人の一覧」{name, uid, role, free} で扱う(uid なし＝名前だけの当番)
 const draftOf = e => {
-  if (e.dutyDraft) return {duty:e.dutyDraft.duty || [], uid:e.dutyDraft.uid || '', role:e.dutyDraft.role || '', free:!!e.dutyDraft.free};
-  if ((e.duty || []).length) return {duty:e.duty, uid:e.dutyUid || '', role:e.dutyRole || '', free:!e.dutyUid};
+  if (e.dutyDraft) return draftPeople(e.dutyDraft);
+  if ((e.duty || []).length) return fixedOf(e);
   const ws = dutyWishers(e);
-  return ws.length === 1 ? {duty:[ws[0].name], uid:ws[0].uid, role:'', free:false} : {duty:[], uid:'', role:'', free:false};
+  return ws.length === 1 ? [{name:ws[0].name, uid:ws[0].uid, role:'', free:false}] : [];
 };
-const fixedOf = e => (e.duty || []).length ? {duty:e.duty, uid:e.dutyUid || '', role:e.dutyRole || ''} : {duty:[], uid:'', role:''};
-const sameDuty = (a, b) => JSON.stringify(a.duty) === JSON.stringify(b.duty) && a.uid === b.uid && a.role === b.role;
+const fixedOf = e => peopleOf(e).map(p => ({...p, free:!p.uid}));
+const sameDuty = (a, b) => JSON.stringify(a.map(p => [p.name, p.uid, p.role])) === JSON.stringify(b.map(p => [p.name, p.uid, p.role]));
+const fmtPeople = ps => ps.map(p => p.name + roleNote(p.role)).join('、');
 // 未確定の変更(終了していない練習で、下書きがカレンダーの当番と違うもの)
 const draftChanges = () => S.events.filter(e => isDutyEv(e) && !isOver(e) && !sameDuty(draftOf(e), fixedOf(e)))
   .sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
@@ -1859,13 +1873,13 @@ function renderDutySetBar(){
 async function confirmDutySet(){
   const ch = draftChanges();
   if (!isMaster() || !ch.length) return;
-  const lines = ch.map(e => { const d = draftOf(e); return `${mmdd(e.date)} ${evLabel(e)}：${d.duty.length ? d.duty.join('、') + roleNote(d.role) : '未定'}`; });
+  const lines = ch.map(e => { const d = draftOf(e); return `${mmdd(e.date)} ${evLabel(e)}：${d.length ? fmtPeople(d) : '未定'}`; });
   if (!confirm(`次の${ch.length}件の当番を確定して、カレンダーに反映しますか？\n\n${lines.join('\n')}`)) return;
   $('dsSave').disabled = true;
   try {
     for (const e of ch) {
       const d = draftOf(e);
-      await store.update('events', e.id, {duty:d.duty, dutyUid:d.uid, dutyRole:d.role, dutyDraft:d, updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now()});
+      await store.update('events', e.id, {...dutyFields(d), dutyDraft:{people:d}, updatedBy:S.auth.uid, updatedByName:myName(), updatedAt:Date.now()});
     }
     log(`当番を確定してカレンダーに反映(${lines.join(' / ')})`);
     alert('当番を確定しました。カレンダーに反映されています。');
@@ -1889,7 +1903,7 @@ function renderDutySet(){
       return `<div class="ev" style="--c:${typeOf(e).c}">
         <b>${esc(evLabel(e))}</b>
         ${evTime(e)}
-        <div class="duty ${ch ? 'draft' : ''}">${ch ? '●' : ''}${dr.duty.length ? `当番:${esc(dr.duty.join('・'))}` : ws.length ? `希望${ws.length}人(未定)` : ch ? '未定' : '<span class="meta">希望者なし</span>'}</div>
+        <div class="duty ${ch ? 'draft' : ''}">${ch ? '●' : ''}${dr.length ? `当番:${esc(dr.map(p => p.name).join('・'))}` : ws.length ? `希望${ws.length}人(未定)` : ch ? '未定' : '<span class="meta">希望者なし</span>'}</div>
         ${ca.length ? `<div class="duty">指導可:${ca.length}人</div>` : ''}
       </div>`;
     }).join('');
@@ -1913,49 +1927,66 @@ function renderDutyDay(date){
 }
 function dutyItem(e){
   const over = isOver(e), ws = dutyWishers(e), ca = coachAvail(e), dr = draftOf(e), fx = fixedOf(e), ch = !sameDuty(dr, fx);
-  const isDr = (uid, role) => dr.duty.length && !dr.free && dr.uid === uid && dr.role === role;
-  const fmtD = x => x.duty.length ? esc(x.duty.join('、')) + (x.role ? ` <span class="meta">${roleNote(x.role)}</span>` : '') : '<span class="meta">未定</span>';
-  // 希望者・指導可能な指導者以外からも選べる(保護者・指導者ごとに表示)
-  const groups = ['保護者', '指導者'].map(r => [r, S.users.filter(u => !u.deleted && roleLabel(u) === r)]).filter(([, us]) => us.length);
+  const inDr = uid => dr.find(p => p.uid === uid);
+  // 下書きの当番(複数可)。✕で1人ずつ外せる
+  const drHtml = dr.length ? dr.map((p, i) => `<span style="white-space:nowrap">${esc(p.name)}${p.role ? ` <span class="meta">${roleNote(p.role)}</span>` : ''}${over ? '' : ` <button data-sdel="${e.id}|${i}" title="当番から外す" style="padding:0 6px;min-height:0;line-height:1.4">✕</button>`}</span>`).join('、') : '<span class="meta">未定</span>';
+  const lost = dr.filter(p => p.uid && !p.free && !(p.role ? ca : ws).some(w => w.uid === p.uid));
+  // 希望者・指導可能な指導者以外からも選べる(保護者・指導者ごとに表示。下書きに入っている人は除く)
+  const groups = ['保護者', '指導者'].map(r => [r, S.users.filter(u => !u.deleted && roleLabel(u) === r && !inDr(u.id))]).filter(([, us]) => us.length);
   return `<div class="evitem ${over ? 'past' : ''}" style="--c:${typeOf(e).c}">
     <div class="head"><span class="tag">${typeOf(e).label}</span><b>${esc(evLabel(e))}</b>
       <span>${esc(e.start || '')}${e.end ? '〜' + esc(e.end) : ''}</span></div>
     ${e.place ? `<div>📍 ${esc(e.place)}</div>` : ''}
-    <div>下書き：<b>${fmtD(dr)}</b>${ch && !over ? ' <b style="color:var(--ng)">(未確定)</b>' : ''}</div>
-    <div class="meta">カレンダーの当番：${fx.duty.length ? esc(fx.duty.join('、')) + roleNote(fx.role) : '未定'}</div>
-    ${dr.uid && !dr.free && !(dr.role ? ca : ws).some(w => w.uid === dr.uid) ? `<div class="meta">※下書きの方の${dr.role ? '指導可能の回答' : '希望'}が取り消されています</div>` : ''}
+    <div>下書き${dr.length > 1 ? `(${dr.length}人)` : ''}：<b>${drHtml}</b>${ch && !over ? ' <b style="color:var(--ng)">(未確定)</b>' : ''}</div>
+    <div class="meta">カレンダーの当番：${fx.length ? esc(fmtPeople(fx)) : '未定'}</div>
+    ${over ? '' : '<div class="meta">当番は何人でも選べます。もう一度押すと外れます。</div>'}
+    ${lost.length ? `<div class="meta">※下書きの${lost.map(p => esc(p.name)).join('・')}さんの${lost.every(p => p.role) ? '指導可能の回答' : '希望'}が取り消されています</div>` : ''}
     ${ws.length ? `<ul class="list">${ws.map(w => `<li><span>${esc(w.name)} <span class="meta">希望 ${fmtAt(w.at)}</span></span>
-      ${over ? '' : isDr(w.uid, '') ? '<b style="color:var(--ok)">当番(下書き)</b>' : `<button class="primary" data-sdraft="${e.id}|${w.uid}|">当番にする</button>`}</li>`).join('')}</ul>`
+      ${over ? (inDr(w.uid) ? '<b style="color:var(--ok)">当番</b>' : '') : inDr(w.uid) && !inDr(w.uid).role ? `<button data-sdraft="${e.id}|${w.uid}|" style="color:var(--ok);font-weight:bold">✓ 当番(下書き)</button>` : `<button class="primary" data-sdraft="${e.id}|${w.uid}|">当番にする</button>`}</li>`).join('')}</ul>`
       : '<div class="meta">当番の希望者はいません</div>'}
     ${ca.length ? `<div class="meta">指導可能な指導者${ws.length ? '' : '(当番にもできます)'}</div>
       <ul class="list">${ca.map(w => `<li><span>${esc(w.name)} <span class="meta">指導可</span></span>
-        ${over || ws.length ? '' : `<span>${['both', 'duty'].map(r => isDr(w.uid, r) ? `<b style="color:var(--ok)">${r === 'both' ? '当番兼指導者' : '当番'}(下書き)</b>`
+        ${over || ws.length ? '' : `<span>${['both', 'duty'].map(r => inDr(w.uid)?.role === r ? `<button data-sdraft="${e.id}|${w.uid}|${r}" style="color:var(--ok);font-weight:bold">✓ ${r === 'both' ? '当番兼指導者' : '当番'}(下書き)</button>`
           : `<button class="primary" data-sdraft="${e.id}|${w.uid}|${r}">${r === 'both' ? '当番兼指導者' : '当番'}</button>`).join(' ')}</span>`}</li>`).join('')}</ul>`
       : '<div class="meta">指導可能：回答なし</div>'}
     ${over ? '<div class="meta">終了した練習です</div>' : `<div class="actions">
-      <select data-sother="${e.id}" style="width:auto"><option value="">ほかの人を当番にする…</option>
-        ${groups.map(([r, us]) => `<optgroup label="${r}">${us.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</optgroup>`).join('')}</select>
-      ${dr.duty.length ? `<button data-sclear="${e.id}">未定にする</button>` : ''}
+      ${groups.length ? `<select data-sother="${e.id}" style="width:auto"><option value="">ほかの人を当番に追加…</option>
+        ${groups.map(([r, us]) => `<optgroup label="${r}">${us.map(u => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}</optgroup>`).join('')}</select>` : ''}
+      ${dr.length ? `<button data-sclear="${e.id}">全員外して未定にする</button>` : ''}
       ${ch ? `<button data-sreset="${e.id}">カレンダーの当番に戻す</button>` : ''}</div>`}
   </div>`;
 }
 // 下書きの保存(カレンダーには反映しない)
-async function setDraft(e, d){
+async function setDraft(e, people){
   if (!isMaster() || !e || isOver(e)) return;
-  try { await store.update('events', e.id, {dutyDraft:d}); } catch (err) { saveErr(err); }
+  try { await store.update('events', e.id, {dutyDraft:{people}}); } catch (err) { saveErr(err); }
 }
 function bindDuty(root){
   const ev = id => S.events.find(x => x.id === id);
+  // 希望者・指導者のボタン：押すと当番に追加、もう一度押すと外す(指導者の役割を押し替えたときは役割だけ変える)
   root.querySelectorAll('[data-sdraft]').forEach(b => b.onclick = () => {
-    const [eid, uid, role] = b.dataset.sdraft.split('|'), u = S.users.find(x => x.id === uid);
-    if (u) setDraft(ev(eid), {duty:[u.name], uid, role, free:false});
+    const [eid, uid, role] = b.dataset.sdraft.split('|'), u = S.users.find(x => x.id === uid), e = ev(eid);
+    if (!u || !e) return;
+    const dr = draftOf(e), i = dr.findIndex(p => p.uid === uid);
+    if (i < 0) dr.push({name:u.name, uid, role, free:false});
+    else if (dr[i].role === role) dr.splice(i, 1);
+    else dr[i] = {...dr[i], role, free:false};
+    setDraft(e, dr);
   });
   root.querySelectorAll('[data-sother]').forEach(s => s.onchange = () => {
-    const u = S.users.find(x => x.id === s.value);
-    if (u) setDraft(ev(s.dataset.sother), {duty:[u.name], uid:u.id, role:'', free:true});
+    const u = S.users.find(x => x.id === s.value), e = ev(s.dataset.sother);
+    if (!u || !e) return;
+    const dr = draftOf(e);
+    if (!dr.some(p => p.uid === u.id)) dr.push({name:u.name, uid:u.id, role:'', free:true});
+    setDraft(e, dr);
   });
-  root.querySelectorAll('[data-sclear]').forEach(b => b.onclick = () => setDraft(ev(b.dataset.sclear), {duty:[], uid:'', role:'', free:false}));
-  root.querySelectorAll('[data-sreset]').forEach(b => b.onclick = () => { const e = ev(b.dataset.sreset); if (e) setDraft(e, {...fixedOf(e), free:!e.dutyUid}); });
+  root.querySelectorAll('[data-sdel]').forEach(b => b.onclick = () => {
+    const [eid, i] = b.dataset.sdel.split('|'), e = ev(eid);
+    if (!e) return;
+    const dr = draftOf(e); dr.splice(+i, 1); setDraft(e, dr);
+  });
+  root.querySelectorAll('[data-sclear]').forEach(b => b.onclick = () => setDraft(ev(b.dataset.sclear), []));
+  root.querySelectorAll('[data-sreset]').forEach(b => b.onclick = () => { const e = ev(b.dataset.sreset); if (e) setDraft(e, fixedOf(e)); });
 }
 $('dutyPrev').onclick = () => { S.month.setMonth(S.month.getMonth() - 1); render(); };
 $('dutyNext').onclick = () => { S.month.setMonth(S.month.getMonth() + 1); render(); };
@@ -2105,11 +2136,10 @@ function editEvent(ev, date){
     const data = {
       type:$('eType').value, title:$('eTitle').value.trim(), date:$('eDate').value,
       place:$('ePlace').value.trim(), start:off ? '' : $('eStart').value, end:off ? '' : $('eEnd').value,
-      duty:[...new Set(dutyList)], note:$('eNote').value.trim(),
-      // 当番希望から決めた当番を予定編集で変えたら、決定扱いを外す
-      dutyUid: ev?.dutyUid && JSON.stringify([...new Set(dutyList)]) === JSON.stringify(ev.duty || []) ? ev.dutyUid : '',
-      dutyRole: ev?.dutyUid && JSON.stringify([...new Set(dutyList)]) === JSON.stringify(ev.duty || []) ? (ev.dutyRole || '') : '',
-      ...(ev && JSON.stringify([...new Set(dutyList)]) !== JSON.stringify(ev.duty || []) ? {dutyDraft:{duty:[...new Set(dutyList)], uid:'', role:'', free:true}} : {}),
+      note:$('eNote').value.trim(),
+      // 当番：予定編集で残した人は当番決めの決定(アカウント・役割)を引き継ぎ、新しく入れた名前は名前だけの当番にする
+      ...dutyFields([...new Set(dutyList)].map(n => peopleOf(ev || {}).find(p => p.name === n) || {name:n, uid:'', role:''})),
+      ...(ev && JSON.stringify([...new Set(dutyList)]) !== JSON.stringify(ev.duty || []) ? {dutyDraft:{people:[...new Set(dutyList)].map(n => ({...(peopleOf(ev).find(p => p.name === n) || {name:n, uid:'', role:''}), free:true}))}} : {}),
       typeName: $('eType').value === 'custom' ? $('eTypeName').value.trim() : '',
       takeAtt: $('eType').value === 'custom' && $('eTakeAtt').checked,
       selfMode: $('eType').value === 'practice' ? $('eSelf').value : '',
@@ -2785,7 +2815,8 @@ function dutyHome(name, e){
   const H = households(), byUser = u => u?.famRel && H.find(h => h.id === u.famRel.split('|')[0]);
   // 名前は全角・半角カッコや空白の違いを無視して比べる(名前の表記が後から変わっていても数えられるように)
   const nm = x => String(x || '').replace(/（/g, '(').replace(/）/g, ')').replace(/\s/g, ''), n = nm(name);
-  const u = (e.dutyUid && e.duty.length === 1 && S.users.find(x => x.id === e.dutyUid)) || S.users.find(x => nm(x.name) === n);
+  const p = peopleOf(e).find(p => p.name === name && p.uid);
+  const u = (p && S.users.find(x => x.id === p.uid)) || S.users.find(x => nm(x.name) === n);
   const h = byUser(u) || H.find(h => (h.relatives || []).some(r => nm(relLabel(h, r)) === n));
   if (h) return h;
   const sur = H.filter(h => h.surname && n.startsWith(nm(h.surname)));
